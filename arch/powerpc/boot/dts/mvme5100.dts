@@ -81,6 +81,11 @@
 			interrupt-controller;
 			reg = <0xf3f80000 0x40000>;
 		};
+
+		rtc@80c8 {
+			compatible = "m48t59";
+			reg = <0x80c8 0x10>;
+		};
 	};
 
 	pci0: pci@feff0000 {
