@@ -32,6 +32,7 @@
 			hwmon@4c {
 				compatible = "adi,adt7461";
 				reg = <0x4c>;
+				interrupts = <4 1 0 0>;
 			};
 
 			rtc@68 {
