@@ -188,9 +188,7 @@ static void mvme5100_show_cpuinfo(struct seq_file *m)
 
 static void __noreturn mvme5100_restart(char *cmd)
 {
-
 	local_irq_disable();
-	mtmsr(mfmsr() | MSR_IP);
 
 	out_8((u_char *) restart, 0x01);
 
