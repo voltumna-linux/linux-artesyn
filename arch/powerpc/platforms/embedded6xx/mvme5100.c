@@ -18,6 +18,7 @@
  */
 
 #include <linux/of_platform.h>
+#include <linux/rtc/m48t59.h>
 
 #include <asm/i8259.h>
 #include <asm/pci-bridge.h>
@@ -38,6 +39,14 @@
 #define BOARD_GEO_ADDR_REG	0xfef880e8
 #define BOARD_EXT_FEATURE1_REG	0xfef880f0
 #define BOARD_EXT_FEATURE2_REG	0xfef88100
+
+/*
+ * Define the M48T37 NVRAM/RTC address strobe & data registers relative
+ * to the base address of the device.
+ */
+#define NVRAM_AS0		0x0
+#define NVRAM_AS1		0x08
+#define NVRAM_DATA		0x10
 
 static phys_addr_t pci_membase;
 static u_char *restart;
@@ -196,6 +205,91 @@ static int __init mvme5100_probe(void)
 {
 	return of_machine_is_compatible("MVME5100");
 }
+
+#if CONFIG_RTC_DRV_M48T59
+
+static unsigned char nvrtc_read_byte(struct device *dev, u32 ofs)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct m48t59_plat_data *pdata = pdev->dev.platform_data;
+	u8 __iomem *addr = pdata->ioaddr;
+	u8 b;
+
+	writeb(ofs, addr + NVRAM_AS0);
+	writeb(ofs >> 8, addr + NVRAM_AS1);
+	b = readb(addr + NVRAM_DATA);
+
+	return b;
+}
+
+static void nvrtc_write_byte(struct device *dev, u32 ofs, u8 val)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct m48t59_plat_data *pdata = pdev->dev.platform_data;
+	u8 __iomem *addr = pdata->ioaddr;
+
+	writeb(ofs, addr + NVRAM_AS0);
+	writeb(ofs >> 8, addr + NVRAM_AS1);
+	writeb(val, addr + NVRAM_DATA);
+}
+
+static struct resource m48t37_resource[2];
+
+static struct  m48t59_plat_data m48t37_data = {
+	.read_byte = nvrtc_read_byte,
+	.write_byte = nvrtc_write_byte,
+	.type = M48T59RTC_TYPE_M48T37,
+};
+
+static struct platform_device m48t37_rtc = {
+	.name		= "rtc-m48t59",
+	.id		= 0,
+	.num_resources	= 2,
+	.resource	= m48t37_resource,
+	.dev    = {
+		.platform_data = &m48t37_data,
+	},
+};
+
+static int __init mvme5100_rtc_init(void)
+{
+	int result = 0;
+	int irq;
+	struct device_node *np;
+	struct resource *res = m48t37_rtc.resource;
+
+	np = of_find_compatible_node(NULL, NULL, "m48t59");
+	if (np == NULL) {
+		pr_info("mvme5100_rtc_init: no RTC found.\n");
+		return 0;
+	}
+
+	of_address_to_resource(np, 0, res);
+	m48t37_data.ioaddr = ioremap(res->start, 1 + res->end - res->start);
+
+	irq = irq_of_parse_and_map(np, 0);
+	if (irq != NO_IRQ)
+	{
+		res[1].start = irq;
+		res[1].end = irq;
+		res[1].flags = IORESOURCE_IRQ;
+	}
+	else
+		pr_warn("mvme5100_rtc_init: no IRQ for RTC\n");
+
+	of_node_put(np);
+
+	pr_info("Found RTC (m48t37) at i/o 0x%x irq %d\n", res->start, irq);
+
+	result = platform_device_register(&m48t37_rtc);
+	if (result < 0)
+		pr_err("Failed to register RTC. Result: %d\n", result);
+
+	return result;
+}
+
+arch_initcall(mvme5100_rtc_init);
+#endif
 
 static int __init probe_of_platform_devices(void)
 {

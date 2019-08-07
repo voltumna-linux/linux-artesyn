@@ -44,9 +44,12 @@
 #define M48T59_FLAGS_AF			0x40	/* alarm */
 #define M48T59_FLAGS_BF			0x10	/* low battery */
 
+#define M48T37_CENTURY		0x1
+
 #define M48T59RTC_TYPE_M48T59	0 /* to keep compatibility */
 #define M48T59RTC_TYPE_M48T02	1
 #define M48T59RTC_TYPE_M48T08	2
+#define M48T59RTC_TYPE_M48T37	3
 
 struct m48t59_plat_data {
 	/* The method to access M48T59 registers */
