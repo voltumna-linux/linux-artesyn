@@ -66,6 +66,7 @@ static int m48t59_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	struct m48t59_private *m48t59 = dev_get_drvdata(dev);
 	unsigned long flags;
 	u8 val;
+	int century;
 
 	spin_lock_irqsave(&m48t59->lock, flags);
 	/* Issue the READ command */
@@ -82,6 +83,12 @@ static int m48t59_rtc_read_time(struct device *dev, struct rtc_time *tm)
 		dev_dbg(dev, "Century bit is enabled\n");
 		tm->tm_year += 100;	/* one century */
 	}
+
+	if (pdata->type == M48T59RTC_TYPE_M48T37) {
+		century = bcd2bin(M48T59_READ(M48T37_CENTURY)) * 100;
+		tm->tm_year = tm->tm_year + century - 1900;
+	}
+
 #ifdef CONFIG_SPARC
 	/* Sun SPARC machines count years since 1968 */
 	tm->tm_year += 68;
@@ -136,6 +143,11 @@ static int m48t59_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		val = (M48T59_WDAY_CEB | M48T59_WDAY_CB);
 	val |= (bin2bcd(tm->tm_wday) & 0x07);
 	M48T59_WRITE(val, M48T59_WDAY);
+
+	if (pdata->type == M48T59RTC_TYPE_M48T37) {
+		val = bin2bcd((tm->tm_year + 1900) / 100);
+		M48T59_WRITE(val, M48T37_CENTURY);
+	}
 
 	/* Clear the WRITE bit */
 	M48T59_CLEAR_BITS(M48T59_CNTL_WRITE, M48T59_CNTL);
@@ -366,6 +378,7 @@ static int m48t59_rtc_probe(struct platform_device *pdev)
 	struct m48t59_private *m48t59 = NULL;
 	struct resource *res;
 	int ret = -ENOMEM;
+	int uie_unsupported = 0;
 	const struct rtc_class_ops *ops;
 	struct nvmem_config nvmem_cfg = {
 		.name = "m48t59-",
@@ -451,6 +464,11 @@ static int m48t59_rtc_probe(struct platform_device *pdev)
 		ops = &m48t02_rtc_ops;
 		pdata->offset = 0x1ff0;
 		break;
+	case M48T59RTC_TYPE_M48T37:
+		ops = &m48t59_rtc_ops;
+		pdata->offset = 0x7ff0;
+		uie_unsupported = 1;
+		break;
 	default:
 		dev_err(&pdev->dev, "Unknown RTC type\n");
 		return -ENODEV;
@@ -463,6 +481,7 @@ static int m48t59_rtc_probe(struct platform_device *pdev)
 	if (IS_ERR(m48t59->rtc))
 		return PTR_ERR(m48t59->rtc);
 
+	m48t59->rtc->uie_unsupported = uie_unsupported;
 	m48t59->rtc->nvram_old_abi = true;
 	m48t59->rtc->ops = ops;
 
@@ -491,5 +510,5 @@ static struct platform_driver m48t59_rtc_driver = {
 module_platform_driver(m48t59_rtc_driver);
 
 MODULE_AUTHOR("Mark Zhan <rongkai.zhan@windriver.com>");
-MODULE_DESCRIPTION("M48T59/M48T02/M48T08 RTC driver");
+MODULE_DESCRIPTION("M48T59/M48T37/M48T02/M48T08 RTC driver");
 MODULE_LICENSE("GPL");
