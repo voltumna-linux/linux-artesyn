@@ -200,12 +200,12 @@
 		board-control@5,0 {
 			compatible = "artesyn,mvme2500-fpga";
 			reg = <0x5 0x0 0x01000>;
+			interrupts = <9 1 0 0>, <10 1 0 0>;
 		};
 
 		cpld@6,0 {
 			compatible = "artesyn,mvme2500-cpld";
 			reg = <0x6 0x0 0x10000>;
-			interrupts = <9 1 0 0>;
 		};
 	};
 
