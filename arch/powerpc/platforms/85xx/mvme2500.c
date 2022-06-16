@@ -23,6 +23,7 @@
 #include <sysdev/fsl_pci.h>
 
 #include "mpc85xx.h"
+#include "smp.h"
 
 #if 0
 #define MVME2500_INTERRUPT_REG_GPIO02_OFFSET	0x95
@@ -48,6 +49,7 @@ static void __init mvme2500_setup_arch(void)
 {
 	if (ppc_md.progress)
 		ppc_md.progress("mvme2500_setup_arch()", 0);
+	mpc85xx_smp_init();
 	fsl_pci_assign_primary();
 	pr_info("MVME2500 board from Artesyn\n");
 }
