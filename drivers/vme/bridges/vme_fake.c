@@ -30,8 +30,8 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 
-#include "vme.h"
-#include "vme_bridge.h"
+#include <linux/vme.h>
+#include "../vme_bridge.h"
 
 /*
  *  Define the number of each that the fake driver supports.

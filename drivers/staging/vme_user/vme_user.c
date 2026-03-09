@@ -34,7 +34,7 @@
 #include <linux/io.h>
 #include <linux/uaccess.h>
 
-#include "vme.h"
+#include <linux/vme.h>
 #include "vme_user.h"
 
 static const char driver_name[] = "vme_user";

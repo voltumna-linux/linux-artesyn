@@ -27,8 +27,8 @@
 #include <linux/uaccess.h>
 #include <linux/byteorder/generic.h>
 
-#include "vme.h"
-#include "vme_bridge.h"
+#include <linux/vme.h>
+#include "../vme_bridge.h"
 #include "vme_tsi148.h"
 
 static int tsi148_probe(struct pci_dev *, const struct pci_device_id *);
