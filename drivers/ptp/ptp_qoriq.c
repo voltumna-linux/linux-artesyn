@@ -501,6 +501,28 @@ int ptp_qoriq_init(struct ptp_qoriq *ptp_qoriq, void __iomem *base,
 	ptp_qoriq->caps.n_per_lp = 2;
 	ptp_qoriq->caps.perout_loopback = ptp_qoriq_perout_loopback;
 
+	if (of_property_read_bool(node, "little-endian")) {
+		ptp_qoriq->read = qoriq_read_le;
+		ptp_qoriq->write = qoriq_write_le;
+	} else {
+		ptp_qoriq->read = qoriq_read_be;
+		ptp_qoriq->write = qoriq_write_be;
+	}
+
+	/* The eTSEC uses differnt memory map with DPAA/ENETC */
+	if (of_device_is_compatible(node, "fsl,etsec-ptp")) {
+		ptp_qoriq->etsec = true;
+		ptp_qoriq->regs.ctrl_regs = base + ETSEC_CTRL_REGS_OFFSET;
+		ptp_qoriq->regs.alarm_regs = base + ETSEC_ALARM_REGS_OFFSET;
+		ptp_qoriq->regs.fiper_regs = base + ETSEC_FIPER_REGS_OFFSET;
+		ptp_qoriq->regs.etts_regs = base + ETSEC_ETTS_REGS_OFFSET;
+	} else {
+		ptp_qoriq->regs.ctrl_regs = base + CTRL_REGS_OFFSET;
+		ptp_qoriq->regs.alarm_regs = base + ALARM_REGS_OFFSET;
+		ptp_qoriq->regs.fiper_regs = base + FIPER_REGS_OFFSET;
+		ptp_qoriq->regs.etts_regs = base + ETTS_REGS_OFFSET;
+	}
+
 	if (of_property_read_u32(node, "fsl,cksel", &ptp_qoriq->cksel))
 		ptp_qoriq->cksel = DEFAULT_CKSEL;
 
@@ -532,28 +554,6 @@ int ptp_qoriq_init(struct ptp_qoriq *ptp_qoriq, void __iomem *base,
 
 		if (ptp_qoriq_auto_config(ptp_qoriq, node))
 			return -ENODEV;
-	}
-
-	if (of_property_read_bool(node, "little-endian")) {
-		ptp_qoriq->read = qoriq_read_le;
-		ptp_qoriq->write = qoriq_write_le;
-	} else {
-		ptp_qoriq->read = qoriq_read_be;
-		ptp_qoriq->write = qoriq_write_be;
-	}
-
-	/* The eTSEC uses differnt memory map with DPAA/ENETC */
-	if (of_device_is_compatible(node, "fsl,etsec-ptp")) {
-		ptp_qoriq->etsec = true;
-		ptp_qoriq->regs.ctrl_regs = base + ETSEC_CTRL_REGS_OFFSET;
-		ptp_qoriq->regs.alarm_regs = base + ETSEC_ALARM_REGS_OFFSET;
-		ptp_qoriq->regs.fiper_regs = base + ETSEC_FIPER_REGS_OFFSET;
-		ptp_qoriq->regs.etts_regs = base + ETSEC_ETTS_REGS_OFFSET;
-	} else {
-		ptp_qoriq->regs.ctrl_regs = base + CTRL_REGS_OFFSET;
-		ptp_qoriq->regs.alarm_regs = base + ALARM_REGS_OFFSET;
-		ptp_qoriq->regs.fiper_regs = base + FIPER_REGS_OFFSET;
-		ptp_qoriq->regs.etts_regs = base + ETTS_REGS_OFFSET;
 	}
 
 	spin_lock_init(&ptp_qoriq->lock);
@@ -657,7 +657,11 @@ static int ptp_qoriq_probe(struct platform_device *dev)
 	return 0;
 
 no_clock:
+	free_irq(ptp_qoriq->irq, ptp_qoriq);
 	iounmap(base);
+	release_resource(ptp_qoriq->rsrc);
+	kfree(ptp_qoriq);
+	return err;
 no_ioremap:
 	release_resource(ptp_qoriq->rsrc);
 no_resource:
