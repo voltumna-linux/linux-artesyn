@@ -64,12 +64,12 @@ static void __init mvme5100_pic_init(void)
 		return;
 	}
 
-	mpic = mpic_alloc(np, pci_membase, 0, 16, 256, " OpenPIC  ");
+	mpic = mpic_alloc(np, 0, 0, 16, 256, " OpenPIC  ");
 
 	BUG_ON(mpic == NULL);
 	of_node_put(np);
 
-	mpic_assign_isu(mpic, 0, pci_membase + 0x10000);
+	mpic_assign_isu(mpic, 0, mpic->paddr + 0x10000);
 
 	mpic_init(mpic);
 
