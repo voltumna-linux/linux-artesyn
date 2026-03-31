@@ -11,6 +11,8 @@ obj-$(CONFIG_PCIEPORTBUS) += pcie/
 
 obj-$(CONFIG_HOTPLUG) += hotplug.o
 
+obj-$(CONFIG_PCI_SERVICES) += pci_node.o pci_conf.o pci_alloc.o pci_scan.o pci_hwints.o 
+
 # Build the PCI Hotplug drivers if we were asked to
 obj-$(CONFIG_HOTPLUG_PCI) += hotplug/
 

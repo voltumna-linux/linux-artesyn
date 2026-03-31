@@ -384,6 +384,54 @@ config BVME6000_NET
 	  in your kernel.
 	  To compile this driver as a module, choose M here.
 
+config GT64260_ETH
+	tristate "GT64260 Ethernet support"
+	depends on NET_ETHERNET && GT64260
+	help
+	  This is the driver for the Ethernet interface on the Marvell 
+          GT64260.
+	  Say Y here to include the driver for this chip in your kernel.
+	  To compile this driver as a module, choose M here.
+
+config GT64260_ETH_0
+	bool "GT64260 Port 0"
+	depends on GT64260_ETH
+	help
+	  This enables support for Port 0 of the Marvell GT64260 Ethernet.
+
+config GT64260_ETH_0_MACADDR
+	string "GT64260 Port 0 MAC Address"
+	depends on GT64260_ETH_0
+	default "0001AF12C9E0"
+	help
+	  Specify MAC address here if you cannot get if from the firmware
+
+config GT64260_ETH_1
+	bool "GT64260 Port 1"
+	depends on GT64260_ETH
+	help
+	  This enables support for Port 1 of the Marvell GT64260 Ethernet.
+
+config GT64260_ETH_1_MACADDR
+	string "GT64260 Port 1 MAC Address"
+	depends on GT64260_ETH_1
+	default "0001AF12C9E1"
+	help
+	  Specify MAC address here if you cannot get if from the firmware
+
+config GT64260_ETH_2
+	bool "GT64260 Port 2"
+	depends on GT64260_ETH
+	help
+	  This enables support for Port 2 of the Marvell GT64260 Ethernet.
+
+config GT64260_ETH_2_MACADDR
+	string "GT64260 Port 2 MAC Address"
+	depends on GT64260_ETH_2
+	default "0001AF12C9E2"
+	help
+	  Specify MAC address here if you cannot get if from the firmware
+
 config ATARILANCE
 	tristate "Atari Lance support"
 	depends on NET_ETHERNET && ATARI

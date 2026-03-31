@@ -266,7 +266,7 @@ pcibios_allocate_bus_resources(struct list_head *bus_list)
 				if (reparent_resources(pr, res) == 0)
 					continue;
 			}
-			printk(KERN_ERR "PCI: Cannot allocate resource region "
+			printk(KERN_DEBUG "PCI: Cannot allocate resource region "
 			       "%d of PCI bridge %d\n", i, bus->number);
 			if (pci_relocate_bridge_resource(bus, i))
 				bus->resource[i] = NULL;
@@ -485,7 +485,7 @@ static inline void alloc_resource(struct pci_dev *dev, int idx)
 	    (unsigned long long)r->end, r->flags);
 	pr = pci_find_parent_resource(dev, r);
 	if (!pr || request_resource(pr, r) < 0) {
-		printk(KERN_ERR "PCI: Cannot allocate resource region %d"
+		printk(KERN_DEBUG "PCI: Cannot allocate resource region %d"
 		       " of device %s\n", idx, pci_name(dev));
 		if (pr)
 			DBG("PCI:  parent is %p: %016llx-%016llx (f=%lx)\n",
@@ -638,6 +638,10 @@ void pcibios_add_platform_entries(struct pci_dev *pdev)
 {
 }
 
+#ifdef CONFIG_PCI_SERVICES
+extern struct pci_bus *pci_pks_scan_bus(int bus, struct pci_ops *ops, void *sysdata);
+#endif
+
 
 static int __init
 pcibios_init(void)
@@ -645,6 +649,7 @@ pcibios_init(void)
 	struct pci_controller *hose;
 	struct pci_bus *bus;
 	int next_busno;
+	int busno = 0;
 
 	printk(KERN_INFO "PCI: Probing PCI hardware\n");
 
@@ -653,12 +658,42 @@ pcibios_init(void)
 		if (pci_assign_all_buses)
 			hose->first_busno = next_busno;
 		hose->last_busno = 0xff;
+#ifdef CONFIG_PCI_SERVICES
+
+#ifdef CONFIG_PCI_MULTI_HOST_BRIDGE
+                if (busno == 0)
+                        bus = pci_pks_scan_bus(hose->first_busno, hose->ops, hose);
+                else
+                        bus = pci_scan_bus(hose->first_busno, hose->ops, hose);
+#else
+                bus = pci_pks_scan_bus(hose->first_busno, hose->ops, hose);
+                                                                                
+#endif
+#else
 		bus = pci_scan_bus(hose->first_busno, hose->ops, hose);
+#endif
 		hose->last_busno = bus->subordinate;
-		if (pci_assign_all_buses || next_busno <= hose->last_busno)
+		if (pci_assign_all_buses || next_busno <= hose->last_busno) {
+#if defined(CONFIG_PCI_MULTI_HOST_BRIDGE)
+			next_busno = 0x100;
+			busno++;
+		}
+#else
 			next_busno = hose->last_busno + pcibios_assign_bus_offset;
+		}
+#endif
 	}
+
+#if defined(CONFIG_PCI_MULTI_HOST_BRIDGE)
+        for (hose = hose_head; hose; hose = hose->next) {
+                hose->first_busno = hose->first_busno & 0xff;
+                hose->last_busno = hose->last_busno & 0xff;
+        }
+
+	pci_bus_count = busno;
+#else
 	pci_bus_count = next_busno;
+#endif
 
 	/* OpenFirmware based machines need a map of OF bus
 	 * numbers vs. kernel bus numbers since we may have to
@@ -690,7 +725,7 @@ pcibios_init(void)
 
 subsys_initcall(pcibios_init);
 
-unsigned char __init
+unsigned char
 common_swizzle(struct pci_dev *dev, unsigned char *pinp)
 {
 	struct pci_controller *hose = dev->sysdata;
@@ -701,7 +736,7 @@ common_swizzle(struct pci_dev *dev, unsigned char *pinp)
 			pin = bridge_swizzle(pin, PCI_SLOT(dev->devfn));
 			/* Move up the chain of bridges. */
 			dev = dev->bus->self;
-		} while (dev->bus->self);
+		} while (dev->bus->self && (dev->bus->self->devfn != 0));
 		*pinp = pin;
 
 		/* The slot is the idsel of the last bridge. */
@@ -715,7 +750,7 @@ unsigned long resource_fixup(struct pci_dev * dev, struct resource * res,
 	return start;
 }
 
-void __init pcibios_fixup_bus(struct pci_bus *bus)
+void pcibios_fixup_bus(struct pci_bus *bus)
 {
 	struct pci_controller *hose = (struct pci_controller *) bus->sysdata;
 	unsigned long io_offset;
@@ -782,7 +817,7 @@ char __init *pcibios_setup(char *str)
 }
 
 /* the next one is stolen from the alpha port... */
-void __init
+void 
 pcibios_update_irq(struct pci_dev *dev, int irq)
 {
 	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);

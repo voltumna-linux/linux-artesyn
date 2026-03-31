@@ -265,6 +265,9 @@ struct boot_param_header {
                                            booting on */
         /* version 3 fields below */
         u32     size_dt_strings;        /* size of the strings block */
+
+        /* version 17 fields below */
+        u32	size_dt_struct;		/* size of the DT structure block */
 };
 
    Along with the constants:
@@ -335,10 +338,13 @@ struct boot_param_header {
      to reallocate it easily at boot and free up the unused flattened
      structure after expansion. Version 16 introduces a new more
      "compact" format for the tree itself that is however not backward
-     compatible. You should always generate a structure of the highest
-     version defined at the time of your implementation. Currently
-     that is version 16, unless you explicitly aim at being backward
-     compatible.
+     compatible. Version 17 adds an additional field, size_dt_struct,
+     allowing it to be reallocated or moved more easily (this is
+     particularly useful for bootloaders which need to make
+     adjustments to a device tree based on probed information). You
+     should always generate a structure of the highest version defined
+     at the time of your implementation. Currently that is version 17,
+     unless you explicitly aim at being backward compatible.
 
    - last_comp_version
 
@@ -347,7 +353,7 @@ struct boot_param_header {
      is backward compatible with version 1 (that is, a kernel build
      for version 1 will be able to boot with a version 2 format). You
      should put a 1 in this field if you generate a device tree of
-     version 1 to 3, or 0x10 if you generate a tree of version 0x10
+     version 1 to 3, or 16 if you generate a tree of version 16 or 17
      using the new unit name format.
 
    - boot_cpuid_phys
@@ -360,6 +366,17 @@ struct boot_param_header {
      point (see further chapters for more informations on the required
      device-tree contents)
 
+   - size_dt_strings
+
+     This field only exists on version 3 and later headers.  It
+     gives the size of the "strings" section of the device tree (which
+     starts at the offset given by off_dt_strings).
+
+   - size_dt_struct
+
+     This field only exists on version 17 and later headers.  It gives
+     the size of the "structure" section of the device tree (which
+     starts at the offset given by off_dt_struct).
 
    So the typical layout of a DT block (though the various parts don't
    need to be in that order) looks like this (addresses go from top to
@@ -417,7 +434,7 @@ root node who has no parent.
 A node has 2 names. The actual node name is generally contained in a
 property of type "name" in the node property list whose value is a
 zero terminated string and is mandatory for version 1 to 3 of the
-format definition (as it is in Open Firmware). Version 0x10 makes it
+format definition (as it is in Open Firmware). Version 16 makes it
 optional as it can generate it from the unit name defined below.
 
 There is also a "unit name" that is used to differentiate nodes with
@@ -835,8 +852,7 @@ address which can extend beyond that limit.
 
   This node is a bit "special". Normally, that's where open firmware
   puts some variable environment information, like the arguments, or
-  phandle pointers to nodes like the main interrupt controller, or the
-  default input/output devices.
+  the default input/output devices.
 
   This specification makes a few of these mandatory, but also defines
   some linux-specific properties that would be normally constructed by
@@ -861,13 +877,13 @@ address which can extend beyond that limit.
       that the kernel tries to find out the default console and has
       knowledge of various types like 8250 serial ports. You may want
       to extend this function to add your own.
-    - interrupt-controller : This is one cell containing a phandle
-      value that matches the "linux,phandle" property of your main
-      interrupt controller node. May be used for interrupt routing.
-
 
   Note that u-boot creates and fills in the chosen node for platforms
   that use it.
+
+  (Note: a practice that is now obsolete was to include a property
+  under /chosen called interrupt-controller which had a phandle value
+  that pointed to the main interrupt controller)
 
   f) the /soc<SOCname> node
 
@@ -1117,42 +1133,7 @@ See appendix A for an example partial SOC node definition for the
 MPC8540.
 
 
-2) Specifying interrupt information for SOC devices
----------------------------------------------------
-
-Each device that is part of an SOC and which generates interrupts
-should have the following properties:
-
-	- interrupt-parent : contains the phandle of the interrupt
-          controller which handles interrupts for this device
-	- interrupts : a list of tuples representing the interrupt
-          number and the interrupt sense and level for each interrupt
-          for this device.
-
-This information is used by the kernel to build the interrupt table
-for the interrupt controllers in the system.
-
-Sense and level information should be encoded as follows:
-
-   Devices connected to openPIC-compatible controllers should encode
-   sense and polarity as follows:
-
-	0 = low to high edge sensitive type enabled
-	1 = active low level sensitive type enabled
-	2 = active high level sensitive type enabled
-	3 = high to low edge sensitive type enabled
-
-   ISA PIC interrupt controllers should adhere to the ISA PIC
-   encodings listed below:
-
-	0 =  active low level sensitive type enabled
-	1 =  active high level sensitive type enabled
-	2 =  high to low edge sensitive type enabled
-	3 =  low to high edge sensitive type enabled
-
-
-
-3) Representing devices without a current OF specification
+2) Representing devices without a current OF specification
 ----------------------------------------------------------
 
 Currently, there are many devices on SOCs that do not have a standard
@@ -1208,6 +1189,13 @@ platforms are moved over to use the flattened-device-tree model.
       services interrupts for this device.
     - phy-handle : The phandle for the PHY connected to this ethernet
       controller.
+
+  Recommended properties:
+
+    - linux,network-index : This is the intended "index" of this
+      network device.  This is used by the bootwrapper to interpret
+      MAC addresses passed by the firmware when no information other
+      than indices is available to associate an address with a device.
 
   Example:
 
@@ -1573,6 +1561,12 @@ platforms are moved over to use the flattened-device-tree model.
    - mac-address : list of bytes representing the ethernet address.
    - phy-handle : The phandle for the PHY connected to this controller.
 
+   Recommended properties:
+   - linux,network-index : This is the intended "index" of this
+     network device.  This is used by the bootwrapper to interpret
+     MAC addresses passed by the firmware when no information other
+     than indices is available to associate an address with a device.
+
    Example:
 	ucc@2000 {
 		device_type = "network";
@@ -1736,6 +1730,92 @@ platforms are moved over to use the flattened-device-tree model.
  	};
 
    More devices will be defined as this spec matures.
+
+VII - Specifying interrupt information for devices
+===================================================
+
+The device tree represents the busses and devices of a hardware
+system in a form similar to the physical bus topology of the
+hardware.
+
+In addition, a logical 'interrupt tree' exists which represents the
+hierarchy and routing of interrupts in the hardware.
+
+The interrupt tree model is fully described in the
+document "Open Firmware Recommended Practice: Interrupt
+Mapping Version 0.9".  The document is available at:
+<http://playground.sun.com/1275/practice>.
+
+1) interrupts property
+----------------------
+
+Devices that generate interrupts to a single interrupt controller
+should use the conventional OF representation described in the
+OF interrupt mapping documentation.
+
+Each device which generates interrupts must have an 'interrupt'
+property.  The interrupt property value is an arbitrary number of
+of 'interrupt specifier' values which describe the interrupt or
+interrupts for the device.
+
+The encoding of an interrupt specifier is determined by the
+interrupt domain in which the device is located in the
+interrupt tree.  The root of an interrupt domain specifies in
+its #interrupt-cells property the number of 32-bit cells
+required to encode an interrupt specifier.  See the OF interrupt
+mapping documentation for a detailed description of domains.
+
+For example, the binding for the OpenPIC interrupt controller
+specifies  an #interrupt-cells value of 2 to encode the interrupt
+number and level/sense information. All interrupt children in an
+OpenPIC interrupt domain use 2 cells per interrupt in their interrupts
+property.
+
+The PCI bus binding specifies a #interrupt-cell value of 1 to encode
+which interrupt pin (INTA,INTB,INTC,INTD) is used.
+
+2) interrupt-parent property
+----------------------------
+
+The interrupt-parent property is specified to define an explicit
+link between a device node and its interrupt parent in
+the interrupt tree.  The value of interrupt-parent is the
+phandle of the parent node.
+
+If the interrupt-parent property is not defined for a node, it's
+interrupt parent is assumed to be an ancestor in the node's
+_device tree_ hierarchy.
+
+3) OpenPIC Interrupt Controllers
+--------------------------------
+
+OpenPIC interrupt controllers require 2 cells to encode
+interrupt information.  The first cell defines the interrupt
+number.  The second cell defines the sense and level
+information.
+
+Sense and level information should be encoded as follows:
+
+	0 = low to high edge sensitive type enabled
+	1 = active low level sensitive type enabled
+	2 = active high level sensitive type enabled
+	3 = high to low edge sensitive type enabled
+
+4) ISA Interrupt Controllers
+----------------------------
+
+ISA PIC interrupt controllers require 2 cells to encode
+interrupt information.  The first cell defines the interrupt
+number.  The second cell defines the sense and level
+information.
+
+ISA PIC interrupt controllers should adhere to the ISA PIC
+encodings listed below:
+
+	0 =  active low level sensitive type enabled
+	1 =  active high level sensitive type enabled
+	2 =  high to low edge sensitive type enabled
+	3 =  low to high edge sensitive type enabled
 
 
 Appendix A - Sample SOC node for MPC8540

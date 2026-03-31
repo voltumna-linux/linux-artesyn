@@ -1,6 +1,23 @@
 #
 # PCI configuration
 #
+
+if MCP820 && CPX8221
+source "drivers/pci/Kconfig-MCP820-CPX8221"
+endif
+
+if MCP820 && CPX8216
+source "drivers/pci/Kconfig-MCP820-CPX8216"
+endif
+
+if PPC_PREP && CPX8221
+source "drivers/pci/Kconfig-MCP750-CPX8221"
+endif
+
+if PPC_PREP && CPX8216
+source "drivers/pci/Kconfig-MCP750-CPX8216"
+endif
+
 config PCI_MSI
 	bool "Message Signaled Interrupts (MSI and MSI-X)"
 	depends on PCI

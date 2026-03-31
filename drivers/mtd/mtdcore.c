@@ -61,7 +61,7 @@ int add_mtd_device(struct mtd_info *mtd)
 			/* Some chips always power up locked. Unlock them now */
 			if ((mtd->flags & MTD_WRITEABLE)
 			    && (mtd->flags & MTD_STUPID_LOCK) && mtd->unlock) {
-				if (mtd->unlock(mtd, 0, mtd->size))
+				if (mtd->unlock(mtd, 0, device_size(mtd)))
 					printk(KERN_WARNING
 					       "%s: unlock failed, "
 					       "writes may not work\n",
@@ -349,7 +349,7 @@ static inline int mtd_proc_info (char *buf, int i)
 	if (!this)
 		return 0;
 
-	return sprintf(buf, "mtd%d: %8.8x %8.8x \"%s\"\n", i, this->size,
+	return sprintf(buf, "mtd%d: %16.16llx %8.8x \"%s\"\n", i, device_size(this),
 		       this->erasesize, this->name);
 }
 
@@ -361,7 +361,7 @@ static int mtd_read_proc (char *page, char **start, off_t off, int count,
 
 	mutex_lock(&mtd_table_mutex);
 
-	len = sprintf(page, "dev:    size   erasesize  name\n");
+	len = sprintf(page, "dev:    size           erasesize  name\n");
         for (i=0; i< MAX_MTD_DEVICES; i++) {
 
                 l = mtd_proc_info(page + len, i);

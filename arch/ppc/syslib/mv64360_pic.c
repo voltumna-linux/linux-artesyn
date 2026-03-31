@@ -112,8 +112,17 @@ mv64360_init_irq(void)
 	/* disable all interrupts and clear current interrupts */
 	mv64x60_write(&bh, MV64x60_GPP_INTR_CAUSE, 0);
 	mv64x60_write(&bh, MV64x60_GPP_INTR_MASK, ppc_cached_irq_mask[2]);
+#ifdef CONFIG_CPCI695
+        /* On CPCI695 board the MV64360 CPU_INT0 output is bound to
+         * MCP# (machine check interrupt) input of 750FX processor
+         * and CPU_INT1 output is bound to INT# (standart CPU interrupt) input
+        */
+	mv64x60_write(&bh, MV64360_IC_CPU1_INTR_MASK_LO,ppc_cached_irq_mask[0]);
+	mv64x60_write(&bh, MV64360_IC_CPU1_INTR_MASK_HI,ppc_cached_irq_mask[1]);
+#else
 	mv64x60_write(&bh, MV64360_IC_CPU0_INTR_MASK_LO,ppc_cached_irq_mask[0]);
 	mv64x60_write(&bh, MV64360_IC_CPU0_INTR_MASK_HI,ppc_cached_irq_mask[1]);
+#endif
 
 	/* All interrupts are level interrupts */
 	for (i = mv64360_irq_base; i < (mv64360_irq_base + 96); i++) {
@@ -225,13 +234,23 @@ mv64360_unmask_irq(unsigned int irq)
 		if (irq > 63) /* unmask GPP irq */
 			mv64x60_write(&bh, MV64x60_GPP_INTR_MASK,
 				ppc_cached_irq_mask[2] |= (1 << (irq - 64)));
-		else /* mask high interrupt register */
+		else  /* mask high interrupt register */
+#ifdef CONFIG_CPCI695
+			mv64x60_write(&bh, MV64360_IC_CPU1_INTR_MASK_HI,
+				ppc_cached_irq_mask[1] |= (1 << (irq - 32)));
+#else
 			mv64x60_write(&bh, MV64360_IC_CPU0_INTR_MASK_HI,
 				ppc_cached_irq_mask[1] |= (1 << (irq - 32)));
+#endif
 	}
 	else /* mask low interrupt register */
+#ifdef CONFIG_CPCI695
+		mv64x60_write(&bh, MV64360_IC_CPU1_INTR_MASK_LO,
+			ppc_cached_irq_mask[0] |= (1 << irq));
+#else
 		mv64x60_write(&bh, MV64360_IC_CPU0_INTR_MASK_LO,
 			ppc_cached_irq_mask[0] |= (1 << irq));
+#endif
 
 	(void)mv64x60_read(&bh, MV64x60_GPP_INTR_MASK);
 	return;
@@ -266,13 +285,23 @@ mv64360_mask_irq(unsigned int irq)
 		if (irq > 63) /* mask GPP irq */
 			mv64x60_write(&bh, MV64x60_GPP_INTR_MASK,
 				ppc_cached_irq_mask[2] &= ~(1 << (irq - 64)));
-		else /* mask high interrupt register */
+		else  /* mask high interrupt register */
+#ifdef CONFIG_CPCI695
+			mv64x60_write(&bh, MV64360_IC_CPU1_INTR_MASK_HI,
+				ppc_cached_irq_mask[1] &= ~(1 << (irq - 32)));
+#else
 			mv64x60_write(&bh, MV64360_IC_CPU0_INTR_MASK_HI,
 				ppc_cached_irq_mask[1] &= ~(1 << (irq - 32)));
+#endif
 	}
 	else /* mask low interrupt register */
+#ifdef CONFIG_CPCI695
+		mv64x60_write(&bh, MV64360_IC_CPU1_INTR_MASK_LO,
+			ppc_cached_irq_mask[0] &= ~(1 << irq));
+#else
 		mv64x60_write(&bh, MV64360_IC_CPU0_INTR_MASK_LO,
 			ppc_cached_irq_mask[0] &= ~(1 << irq));
+#endif
 
 	(void)mv64x60_read(&bh, MV64x60_GPP_INTR_MASK);
 	return;

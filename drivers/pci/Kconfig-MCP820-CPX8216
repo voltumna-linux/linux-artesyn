@@ -1,0 +1,248 @@
+config PCI_MULTI_HOST_BRIDGE 
+	bool "Multiple Host Bridges"
+	depends on PCI_SERVICES
+	default y
+
+config PCI_MULTI_DOMAIN
+	bool "Multiple PCI domains"	
+	depends on PCI_SERVICES
+	default y
+
+config PCI_PRESERVE_CONFIGURATION
+	bool "Preserve PCI configuration on domain swaps" 
+	depends on PCI_SERVICES
+	default y
+
+#
+# Prompt user for number of nodes at each Bus Level.
+#
+
+config PCI_BUSLVL0_NODES 
+	int "PCI Bus Level 0 nodes" 
+	depends on PCI_SERVICES
+	default 1
+
+config PCI_BUSLVL1_NODES 
+	int "PCI Bus Level 1 nodes" 
+	depends on PCI_SERVICES
+	default 2
+
+config PCI_BUSLVL2_NODES 
+	int "PCI Bus Level 2 nodes" 
+	depends on PCI_SERVICES
+	default 6
+
+config PCI_BUSLVL3_NODES 
+	int
+	depends on PCI_SERVICES
+	default 1 if CPX8216
+	default 7 if CPX8221
+
+#
+# Prompt user for starting/ending address for PCI I/O space,
+# PCI 20-bit memory space, PCI normal memory space, and PCI
+# prefetch memory space.
+#
+
+config PCI_IO_START 
+	hex "PCI I/O space starting address" 
+	depends on PCI_SERVICES
+	default 0x00100000
+
+config PCI_IO_END 
+	hex "PCI I/O space ending address" 
+	depends on PCI_SERVICES
+	default 0x001fffff
+
+config PCI_MEM20_START 
+	hex "PCI 20-bit memory  space starting address" 
+	depends on PCI_SERVICES
+	default 0x00000000
+
+config PCI_MEM20_END 
+	hex "PCI 20-bit memory  space ending address" 
+	depends on PCI_SERVICES
+	default 0x000fffff
+
+config PCI_MEM_START 
+	hex "PCI memory space starting address" 
+	depends on PCI_SERVICES
+	default 0x80000000
+
+config PCI_MEM_END 
+	hex "PCI memory space ending address" 
+	depends on PCI_SERVICES
+	default 0xcfffffff
+
+config PCI_MEMPF_START 
+	hex "PCI prefetch memory space starting address" 
+	depends on PCI_SERVICES
+	default 0xd0000000
+
+config PCI_MEMPF_END 
+	hex "PCI prefetch memory space ending address" 
+	depends on PCI_SERVICES
+	default 0xd7ffffff
+
+#
+# Prompt user for local domain PCI IRQ values for PIRQA, PIRQB,
+# PIRQC, and PIRQD. Also prompt user for the local domain bridge
+# device/function number.
+#
+
+config PCI_LOCAL_PIRQA
+	depends on PCI_SERVICES
+	int "PCI local IRQ A"
+	default 28
+
+config PCI_LOCAL_PIRQB
+	depends on PCI_SERVICES
+	int "PCI local IRQ B"
+	default 29
+
+config PCI_LOCAL_PIRQC
+	depends on PCI_SERVICES
+	int "PCI local IRQ C"
+	default 30
+
+config PCI_LOCAL_PIRQD
+	depends on PCI_SERVICES
+	int "PCI local IRQ D"
+	default 31
+
+config PCI_LOCAL_DEV
+	depends on PCI_SERVICES
+	hex "PCI local domain bridge device/function"
+	default 0x000000a0
+
+config PCI_LOCAL_HSC
+	depends on PCI_SERVICES
+	hex "PCI local hotswap controller device/function"
+	default 0x000000b0
+
+#
+# Prompt user as to whether the system is a multi-domain system
+# or not. If so, then prompt the user for remote domain PCI IRQ
+# values for PIRQA, PIRQB, PIRQC, and PIRQD. Also prompt user
+# for the remote domain bridge device/function number.
+#
+
+config PCI_REMOTE_PIRQA
+	depends on PCI_SERVICES && PCI_MULTI_DOMAIN
+	int "PCI remote IRQ A"
+	default 20
+
+config PCI_REMOTE_PIRQB
+	depends on PCI_SERVICES && PCI_MULTI_DOMAIN
+	int "PCI remote IRQ B"
+	default 21
+
+config PCI_REMOTE_PIRQC
+	depends on PCI_SERVICES && PCI_MULTI_DOMAIN
+	int "PCI remote IRQ C"
+	default 22
+
+config PCI_REMOTE_PIRQD
+	depends on PCI_SERVICES && PCI_MULTI_DOMAIN
+	int "PCI remote IRQ D"
+	default 23
+
+config PCI_REMOTE_DEV
+	depends on PCI_SERVICES && PCI_MULTI_DOMAIN
+	hex "PCI remote domain bridge device/function"
+	default 0x000000c0
+
+config PCI_REMOTE_HSC
+	depends on PCI_SERVICES && PCI_MULTI_DOMAIN
+	hex "PCI remote hotswap controller device/function"
+	default 0x00000000
+
+#
+# Prompt user as well as whether to configure hardware
+# interrupts or not.
+#
+
+config PCI_PIRQ_UPDATE
+	bool "PCI PIRQ registers update"
+	depends on PCI_SERVICES
+	default n
+
+#
+# Prompt user for devices' Command register bits.
+#
+
+config PCI_COMMAND_SPECIAL
+	bool "PCI Command Reg. - Special Cycle Recognition"
+	depends on PCI_SERVICES
+	default n
+
+config PCI_COMMAND_INVALIDATE
+	bool "PCI Command Reg. - Memory Write/Invalidate" 
+	depends on PCI_SERVICES
+	default n
+
+config PCI_COMMAND_PARITY
+	bool "PCI Command Reg. - Parity Error Response" 
+	depends on PCI_SERVICES
+	default n
+
+config PCI_COMMAND_WAIT
+	bool "PCI Command Reg. - Wait Cycle"
+	depends on PCI_SERVICES
+	default n
+
+config PCI_COMMAND_SERR
+	bool "PCI Command Reg. - System Error"
+	depends on PCI_SERVICES
+	default n
+
+#
+# Prompt user for devices' Cache Line Size value.
+#
+
+config PCI_CACHE_LINE_SIZE
+	int "PCI Cache Line Size"  
+	depends on PCI_SERVICES
+	default 8
+
+#
+# Prompt user for devices' Latency Timer value.
+#
+
+config PCI_LATENCY_TIMER 
+	int "PCI Latency Timer" 
+	depends on PCI_SERVICES
+	default 128
+
+#
+# Prompt user for bridges' Secondary Latency Timer value.
+#
+
+config PCI_SEC_LATENCY_TIMER
+	int "PCI Secondary Latency Timer" 
+	depends on PCI_SERVICES
+	default 128
+
+#
+# Prompt user for bridges' Bridge Control register bits.
+#
+
+config PCI_BRIDGE_CTL_PARITY
+	bool "PCI Bridge Ctl - Parity Error Response"
+	depends on PCI_SERVICES
+	default n
+
+config PCI_BRIDGE_CTL_SERR
+	bool "PCI Bridge Ctl - System Error Response"
+	depends on PCI_SERVICES
+	default n
+
+config PCI_BRIDGE_CTL_ISA_MODE
+	bool "PCI Bridge Ctl - ISA Mode"
+	depends on PCI_SERVICES
+	default n
+
+config PCI_BRIDGE_CTL_MASTER_ABORT
+	bool "PCI Bridge Ctl - Master Abort Mode"
+	depends on PCI_SERVICES
+	default n

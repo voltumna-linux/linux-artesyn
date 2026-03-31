@@ -34,6 +34,29 @@ relocate:
 	mr	r8, r3
 	mr	r11, r4
 
+#ifdef CONFIG_MVME3100
+
+#define RD_SAVE_ADDRESS 0x00400000
+#define RD_SIZE		0x80
+
+	/* Copy FW provided residual data to some known available address 
+         * so that it won't get overwritten while relocating a big 
+         * ramdisk based kernel image.
+         */
+
+	lis	r5,RD_SAVE_ADDRESS@ha
+	addi	r5,r5,RD_SAVE_ADDRESS@l
+	li	r9,RD_SIZE
+	mtctr	r9
+4:	lwz	r9,0(r4)
+	stw	r9,0(r5)
+	addi	r4,r4,4
+	addi	r5,r5,4
+	bdnz	4b
+
+	lis	r11,RD_SAVE_ADDRESS@ha
+	addi	r11,r11,RD_SAVE_ADDRESS@l
+#endif
 	/* compute the size of the whole image in words. */
 	GETSYM(r4,start)
 	GETSYM(r5,end)

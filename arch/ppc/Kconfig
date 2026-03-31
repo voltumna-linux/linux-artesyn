@@ -65,6 +65,7 @@ config GENERIC_BUG
 	default y
 	depends on BUG
 
+	
 source "init/Kconfig"
 
 menu "Processor"
@@ -605,6 +606,11 @@ config CPCI690
 	help
 	  Select CPCI690 if configuring a Force CPCI690 cPCI board.
 
+config CPCI695
+	bool "Force-CPCI695"
+	help
+	  Select CPCI695 if configuring a Force CPCI695 cPCI board.
+
 config POWERPMC250
 	bool "Force-PowerPMC250"
 
@@ -641,6 +647,23 @@ config LOPEC
 
 config MVME5100
 	bool "Motorola-MVME5100"
+	select PPC_INDIRECT_PCI
+
+config MVME5500
+	bool "Motorola-MVME5500"
+
+config MVME6100
+	bool "Motorola-MVME6100"
+
+config MCP905
+	bool "Motorola-MCP905"
+
+config MCP805
+	bool "Motorola-MCP805"
+	select PPC_INDIRECT_PCI
+
+config MCP820
+	bool "Motorola-MCP820"
 	select PPC_INDIRECT_PCI
 
 config PPLUS
@@ -769,8 +792,13 @@ config TQM8xxL
 
 config EMBEDDEDBOOT
 	bool
-	depends on 8xx || 8260
+	depends on 8xx || 8260 || MVME3100 
 	default y
+
+config UBOOT
+        bool
+        depends on MVME3100 
+        default y
 
 config PPC_MPC52xx
 	bool
@@ -827,10 +855,10 @@ config CPM2
 
 config PPC_GEN550
 	bool
-	depends on SANDPOINT || SPRUCE || PPLUS || \
-		PRPMC750 || PRPMC800 || LOPEC || \
+	depends on SANDPOINT || SPRUCE || PPLUS || CPCI695 ||  \
+		PRPMC750 || PRPMC800 || LOPEC || MVME6100 || MCP905 || \
 		(EV64260 && !SERIAL_MPSC) || CHESTNUT || RADSTONE_PPC7D || \
-		83xx
+		83xx || MVME5500 || MCP805 || MCP820 || PPC_PREP
 	default y
 
 config FORCE
@@ -840,12 +868,12 @@ config FORCE
 
 config GT64260
 	bool
-	depends on EV64260 || CPCI690
+	depends on EV64260 || CPCI690 || MVME5500
 	default y
 
 config MV64360		# Really MV64360 & MV64460
 	bool
-	depends on CHESTNUT || KATANA || RADSTONE_PPC7D || HDPU || EV64360
+	depends on CHESTNUT || KATANA || RADSTONE_PPC7D || HDPU || CPCI695 || EV64360 || MVME6100 || MCP905
 	default y
 
 config MV64X60
@@ -881,6 +909,10 @@ config MV64X60_NEW_BASE
 	  If the current base address of the bridge's registers is not where
 	  you want it, set this value to the address that you want it moved to.
 
+config MV64X60_USE_SRAM
+	bool "Use MV64X60 integrated SRAM for ethernet descriptors"
+	default n
+
 endmenu
 
 config NONMONARCH_SUPPORT
@@ -889,12 +921,32 @@ config NONMONARCH_SUPPORT
 
 config HARRIER
 	bool
-	depends on PRPMC800
+	depends on PRPMC800 || MCP805 || MCP820
 	default y
 
 config EPIC_SERIAL_MODE
 	bool
 	depends on 6xx && (LOPEC || SANDPOINT)
+	default y
+
+config MVME3100_ENABLE_DDR_ERRORS
+	bool "Enable DDR Error Reporting"
+	depends on MVME3100
+	default y
+
+config MVME3100_ENABLE_L2_ERRORS
+	bool "Enable L2 Error Reporting"
+	depends on MVME3100
+	default y
+
+config MVME3100_ENABLE_PCI_ERRORS
+	bool "Enable PCI Error Reporting"
+	depends on MVME3100
+	default y
+
+config MVME3100_TICK_TIMERS
+	bool "Enable support for the Tick Timers on the MVME3100"
+	depends on MVME3100
 	default y
 
 config MPC10X_BRIDGE
@@ -918,6 +970,31 @@ config SANDPOINT_ENABLE_UART1
 	help
 	  If this option is enabled then the MPC824x processor will run
 	  in DUART mode instead of UART mode.
+
+config PCI_SERVICES
+	bool "PCI Services"
+	default n
+	depends on MCP820 || PPC_PREP
+
+if PCI_SERVICES
+
+menu "Chassis"
+                                                                                
+choice
+	prompt "Chassis Type (CPX8216, CPX8221)"
+	depends on PCI_SERVICES
+                                                                                
+config CPX8216
+	bool "CPX8216"
+                                                                                
+config CPX8221
+	bool "CPX8221"
+                                                                                
+endchoice
+                                                                                
+endmenu
+
+endif
 
 config HARRIER_STORE_GATHERING
 	bool "Enable Harrier store gathering"

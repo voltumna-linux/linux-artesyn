@@ -20,49 +20,39 @@
 
 /**
  * aer_osc_setup - run ACPI _OSC method
+ * @pciedev: pcie_device which AER is being enabled on
  *
- * Return:
- *	Zero if success. Nonzero for otherwise.
+ * @return: Zero on success. Nonzero otherwise.
  *
  * Invoked when PCIE bus loads AER service driver. To avoid conflict with
  * BIOS AER support requires BIOS to yield AER control to OS native driver.
  **/
-int aer_osc_setup(struct pci_dev *dev)
+int aer_osc_setup(struct pcie_device *pciedev)
 {
-	int retval = OSC_METHOD_RUN_SUCCESS;
-	acpi_status status;
-	acpi_handle handle = DEVICE_ACPI_HANDLE(&dev->dev);
-	struct pci_dev *pdev = dev;
-	struct pci_bus *parent;
+	acpi_status status = AE_NOT_FOUND;
+	struct pci_dev *pdev = pciedev->port;
+	acpi_handle handle = 0;
 
-	while (!handle) {
-		if (!pdev || !pdev->bus->parent)
-			break;
-		parent = pdev->bus->parent;
-		if (!parent->self)
-			/* Parent must be a host bridge */
-			handle = acpi_get_pci_rootbridge_handle(
-					pci_domain_nr(parent),
-					parent->number);
-		else
-			handle = DEVICE_ACPI_HANDLE(
-					&(parent->self->dev));
-		pdev = parent->self;
+	/* Find root host bridge */
+	while (pdev->bus && pdev->bus->self)
+		pdev = pdev->bus->self;
+	handle = acpi_get_pci_rootbridge_handle(
+		pci_domain_nr(pdev->bus), pdev->bus->number);
+
+	if (handle) {
+		pcie_osc_support_set(OSC_EXT_PCI_CONFIG_SUPPORT);
+		status = pci_osc_control_set(handle,
+					OSC_PCI_EXPRESS_AER_CONTROL |
+					OSC_PCI_EXPRESS_CAP_STRUCTURE_CONTROL);
 	}
 
-	if (!handle)
-		return OSC_METHOD_NOT_SUPPORTED;
-
-	pci_osc_support_set(OSC_EXT_PCI_CONFIG_SUPPORT);
-	status = pci_osc_control_set(handle, OSC_PCI_EXPRESS_AER_CONTROL |
-		OSC_PCI_EXPRESS_CAP_STRUCTURE_CONTROL);
 	if (ACPI_FAILURE(status)) {
-		if (status == AE_SUPPORT)
-			retval = OSC_METHOD_NOT_SUPPORTED;
-	 	else
-			retval = OSC_METHOD_RUN_FAILURE;
+		printk(KERN_DEBUG "AER service couldn't init device %s - %s\n",
+		    pciedev->device.bus_id,
+		    (status == AE_SUPPORT || status == AE_NOT_FOUND) ?
+		    "no _OSC support" : "Run ACPI _OSC fails");
+		return -1;
 	}
 
-	return retval;
+	return 0;
 }
-

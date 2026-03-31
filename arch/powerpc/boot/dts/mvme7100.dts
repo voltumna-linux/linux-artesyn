@@ -1,0 +1,393 @@
+/*
+ * MVME7100 Device Tree Source
+ *
+ * Copyright 2007 Motorola Inc.
+ *
+ * This program is free software; you can redistribute  it and/or modify it
+ * under  the terms of  the GNU General  Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
+ */
+
+
+/ {
+	model = "MVME7100";
+	compatible = "mpc86xx";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#cpus = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		PowerPC,8641@0 {
+			device_type = "cpu";
+			reg = <0>;
+			d-cache-line-size = <20>;	// 32 bytes
+			i-cache-line-size = <20>;	// 32 bytes
+			d-cache-size = <8000>;		// L1, 32K
+			i-cache-size = <8000>;		// L1, 32K
+			timebase-frequency = <7735940>;	// from bootwrapper
+			bus-frequency = <1fc4ef40>;	// 533 MHz, from bw
+			clock-frequency = <59682f00>;	// 1333 MHz, from bw
+			32-bit;
+		};
+		PowerPC,8641@1 {
+			device_type = "cpu";
+			reg = <1>;
+			d-cache-line-size = <20>;	// 32 bytes
+			i-cache-line-size = <20>;	// 32 bytes
+			d-cache-size = <8000>;		// L1, 32K
+			i-cache-size = <8000>;		// L1, 32K
+			timebase-frequency = <7735940>;	// from bootwrapper
+			bus-frequency = <1fc4ef40>;	// 533 MHz. from bw
+			clock-frequency = <59682f00>;	// 1333 MHz, from bw
+			32-bit;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <00000000 80000000>;	// 2G at 0x0
+	};
+
+	soc8641@f1000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#interrupt-cells = <2>;
+		device_type = "soc";
+		ranges = <00001000 f1001000 000ff000>;
+		reg = <f1000000 00001000>;	// CCSRBAR
+		bus-frequency = <1fc4ef40>;	// 533 MHz. from bw
+
+                memory-controller@2000 {
+                        compatible = "fsl,mpc8641-memory-controller";
+                        device_type = "memory-controller";
+                        reg = <2000 e60>;
+                        virtual-reg = <f1002000>;
+                        interrupts = <12 2>;
+                        interrupt-parent = <&mpic>;
+                };
+
+                l2_cache@20000 {
+                        device_type = "l2_cache";
+                        reg = <20000 e60>;
+                        virtual-reg = <f1020000>;
+                        interrupts = <10 2>;
+                        interrupt-parent = <&mpic>;
+                };
+
+
+		i2c@3000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "i2c";
+			compatible = "fsl-i2c";
+			reg = <3000 100>;
+			virtual-reg = <f1003000>;
+			interrupts = <2b 2>;
+			interrupt-parent = <&mpic>;
+			dfsrr;
+			thermostat@4c {
+				device_type = "thermostat";
+				compatible = "adt7461", "lm90";
+				reg = <4c>;
+                        	interrupts = <49 1>;
+                		interrupt-parent = <&mpic>;
+				};
+			rtc@68 {
+				device_type = "rtc";
+				compatible = "ds1375";
+				reg = <68>;
+                        	interrupts = <49 1>;
+                		interrupt-parent = <&mpic>;
+				};
+		};
+
+		i2c@3100 {
+			device_type = "i2c";
+			compatible = "fsl-i2c";
+			reg = <3100 100>;
+			virtual-reg = <f1003100>;
+			interrupts = <2b 2>;
+			interrupt-parent = <&mpic>;
+			dfsrr;
+		};
+
+		mdio@24520 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "mdio";
+			compatible = "gianfar";
+			reg = <24520 20>;
+			phy0: ethernet-phy@0 {
+				device_type = "ethernet-phy";
+				compatible = "broadcom,bcm5482";
+				interrupt-parent = <&mpic>;
+				interrupts = <4a 1>;
+				reg = <1>;
+			};
+			phy1: ethernet-phy@1 {
+				device_type = "ethernet-phy";
+				compatible = "broadcom,bcm5482";
+				interrupt-parent = <&mpic>;
+				interrupts = <4a 1>;
+				reg = <2>;
+			};
+			phy2: ethernet-phy@2 {
+				device_type = "ethernet-phy";
+				compatible = "broadcom,bcm5482";
+				interrupt-parent = <&mpic>;
+				interrupts = <4a 1>;
+				reg = <3>;
+			};
+			phy3: ethernet-phy@3 {
+				device_type = "ethernet-phy";
+				compatible = "broadcom,bcm5482";
+				interrupt-parent = <&mpic>;
+				interrupts = <4a 1>;
+				reg = <4>;
+			};
+		};
+
+		ethernet@24000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "TSEC";
+			compatible = "gianfar";
+			reg = <24000 1000>;
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <1d 2 1e 2 22 2>;
+			interrupt-parent = <&mpic>;
+			phy-handle = <&phy0>;
+		};
+
+		ethernet@25000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "TSEC";
+			compatible = "gianfar";
+			reg = <25000 1000>;
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <23 2 24 2 28 2>;
+			interrupt-parent = <&mpic>;
+			phy-handle = <&phy1>;
+		};
+		
+		ethernet@26000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "TSEC";
+			compatible = "gianfar";
+			reg = <26000 1000>;
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <1F 2 20 2 21 2>;
+			interrupt-parent = <&mpic>;
+			phy-handle = <&phy2>;
+		};
+
+		ethernet@27000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "TSEC";
+			compatible = "gianfar";
+			reg = <27000 1000>;
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <25 2 26 2 27 2>;
+			interrupt-parent = <&mpic>;
+			phy-handle = <&phy3>;
+		};
+		serial@4500 {
+			device_type = "serial";
+			compatible = "ns16550";
+			reg = <4500 100>;
+			virtual-reg = <f1004500>;
+			clock-frequency = <1fc4ef40>;
+			current-speed = <2580>;
+			interrupts = <2a 2>;
+			interrupt-parent = <&mpic>;
+		};
+
+		pcie@8000 {
+			compatible = "fsl,mpc8641-pciex", "86xx";
+			device_type = "pci";
+			#interrupt-cells = <1>;
+			#size-cells = <2>;
+			#address-cells = <3>;
+			reg = <8000 1000>;
+			bus-range = <0 ff>;
+			ranges = <02000000 0 80000000 80000000 0 10000000
+				  42000000 0 90000000 90000000 0 40000000
+				  01000000 0 00000000 f0000000 0 00100000>;
+			clock-frequency = <0>;
+			interrupt-parent = <&mpic>;
+			interrupts = <18 2>;
+			interrupt-map-mask = <f800 0 0 7>;
+			interrupt-map = <
+				/* IDSEL 0x0 */
+				0000 0 0 1 &mpic 40 1
+				0000 0 0 2 &mpic 41 1
+				0000 0 0 3 &mpic 42 1
+				0000 0 0 4 &mpic 43 1
+				>;
+                };
+
+		pcie@9000 {
+			compatible = "fsl,mpc8641-pciex", "86xx";
+			device_type = "pci";
+			#interrupt-cells = <1>;
+			#size-cells = <2>;
+			#address-cells = <3>;
+			reg = <9000 1000>;
+			bus-range = <0 ff>;
+			ranges = <02000000 0 d0000000 d0000000 0 08000000
+				  01000000 0 00000000 f0100000 0 00100000>;
+			clock-frequency = <0>;
+			interrupt-parent = <&mpic>;
+			interrupts = <19 2>;
+			interrupt-map-mask = <f800 0 0 7>;
+			interrupt-map = <
+				/* IDSEL 0x0 */
+				0000 0 0 1 &mpic 44 1
+				0000 0 0 2 &mpic 45 1
+				0000 0 0 3 &mpic 46 1
+				0000 0 0 4 &mpic 47 1
+				>;
+		};
+
+		mpic: pic@40000 {
+			clock-frequency = <0>;
+			interrupt-controller;
+			#address-cells = <0>;
+			#interrupt-cells = <2>;
+			reg = <40000 40000>;
+			built-in;
+			compatible = "chrp,open-pic";
+			device_type = "open-pic";
+                        big-endian;
+		};
+
+		dma@21000 { 
+			#address-cells = <1>; 
+			#size-cells = <1>; 
+			compatible = "fsl,mpc8540-dma"; 
+			reg = <21300 4>; 
+			ranges = <0 21100 200>; 
+			dma-channel@0 { 
+				compatible = "fsl,mpc8540-dma-channel"; 
+				reg = <0 80>; 
+				interrupt-parent = <&mpic>; 
+				interrupts = <14 2>; 
+			}; 
+			dma-channel@80 { 
+				compatible = "fsl,mpc8540-dma-channel"; 
+				reg = <80 80>; 
+				interrupt-parent = <&mpic>; 
+				interrupts = <15 2>; 
+			}; 
+			dma-channel@100 { 
+				compatible = "fsl,mpc8540-dma-channel"; 
+				reg = <100 80>; 
+				interrupt-parent = <&mpic>; 
+				interrupts = <16 2>; 
+			}; 
+			dma-channel@180 { 
+				compatible = "fsl,mpc8540-dma-channel"; 
+				reg = <180 80>; 
+				interrupt-parent = <&mpic>; 
+				interrupts = <17 2>; 
+			}; 
+		}; 
+	};
+
+	chosen {
+		name = "chosen";
+		bootargs = "root=/dev/ram0 rw console=ttyS0,9600";
+		linux,initrd-start =<00000000>; 
+		linux,initrd-end =<00000000>; 
+		linux,stdout-path = "/soc8641@f1000000/serial@4500";
+	};
+
+        board_timers@f2020000 {
+                device_type = "board_timers";
+                reg = <f2020000 4c>;
+                interrupts = <4b 1>;
+                interrupt-parent = <&mpic>;
+        };
+
+        serial@f2011000 {
+                device_type = "serial";
+                compatible = "ns16550";
+                reg = <f2011000 100>;
+                virtual-reg = <f2011000>;
+                clock-frequency = <1c2000>;
+                current-speed = <2580>;  // 9600=0x2580
+                interrupts = <4b 1>;
+                interrupt-parent = <&mpic>;
+        };
+
+        serial@f2012000 {
+                device_type = "serial";
+                compatible = "ns16550";
+                reg = <f2012000 100>;
+                virtual-reg = <f2012000>;
+                clock-frequency = <1c2000>;
+                current-speed = <2580>;  // 9600=0x2580
+                interrupts = <4b 1>;
+                interrupt-parent = <&mpic>;
+        };
+
+        serial@f2013000 {
+                device_type = "serial";
+                compatible = "ns16550";
+                reg = <f2013000 100>;
+                virtual-reg = <f2013000>;
+                clock-frequency = <1c2000>;
+                current-speed = <2580>;  // 9600=0x2580
+                interrupts = <4b 1>;
+                interrupt-parent = <&mpic>;
+        };
+
+
+        serial@f2014000 {
+                device_type = "serial";
+                compatible = "ns16550";
+                reg = <f2014000 100>;
+                virtual-reg = <f2014000>;
+                clock-frequency = <1c2000>;
+                current-speed = <2580>;  // 9600=0x2580
+                interrupts = <4b 1>;
+                interrupt-parent = <&mpic>;
+        };
+
+       flash@f8000000 {
+               compatible = "amd,s29glv160", "cfi-flash";
+               reg = <f8000000 08000000>;
+               bank-width = <2>;
+	       #address-cells = <1>;
+	       #size-cells = <1>;
+	       bootimage@0 {
+			label = "bootimage";
+			reg = <0 2000000>;
+		};
+	       fs@2000000 {
+			label = "fs";
+			reg = <2000000 6e00000>;
+		};
+		firmware_B@7e00000 {
+			label = "firmware_B";
+			reg = <7e00000 100000>;
+			read-only;
+		};
+		firmware_A@7f00000 {
+			label = "firmware_A";
+			reg = <7f00000 100000>;
+			read-only;
+		};
+       };
+};

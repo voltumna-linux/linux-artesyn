@@ -18,6 +18,7 @@ extern unsigned long pci_bus_mem_base_phys(unsigned int bus);
 
 /* Allocate a new PCI host bridge structure */
 extern struct pci_controller* pcibios_alloc_controller(void);
+extern void pcibios_free_controller(struct pci_controller *phb);
 
 /* Helper function for setting up resources */
 extern void pci_init_resource(struct resource *res, resource_size_t start,

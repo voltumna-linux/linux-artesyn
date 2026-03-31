@@ -221,7 +221,7 @@ skpinv:	addi	r6,r6,1				/* Increment */
 	lis	r6,0x1000		/* Set MAS0(TLBSEL) = TLB1(1), ESEL = 0 */
 	mtspr	SPRN_MAS0,r6
 	lis	r6,(MAS1_VALID|MAS1_IPROT)@h
-	ori	r6,r6,(MAS1_TSIZE(BOOKE_PAGESZ_16M))@l
+	ori	r6,r6,(MAS1_TSIZE(BOOKE_PAGESZ_64M))@l
 	mtspr	SPRN_MAS1,r6
 	li	r7,0
 	lis	r6,KERNELBASE@h

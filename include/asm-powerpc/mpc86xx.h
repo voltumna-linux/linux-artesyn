@@ -34,6 +34,11 @@
 #define MPC86xx_MCM_OFFSET      (0x00000)
 #define MPC86xx_MCM_SIZE        (0x02000)
 
+#define MPC8641_REV_MSK         0xffff00f0
+#define MPC8641_REV_1X_SVR      0x80900010
+#define MPC8641_REV_1X \
+                ((mfspr(SPRN_SVR) & MPC8641_REV_MSK) == MPC8641_REV_1X_SVR)
+
 #endif /* CONFIG_PPC_86xx */
 #endif /* __ASM_POWERPC_MPC86xx_H__ */
 #endif /* __KERNEL__ */

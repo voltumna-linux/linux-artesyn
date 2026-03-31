@@ -185,6 +185,18 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
 ARCH		?= $(SUBARCH)
 CROSS_COMPILE	?=
 
+# use powerpc for MVME7100
+# use ppc for MVME5500, MVME6100, MVME3100, MCP820, MCP905, MCP750
+#ARCH		?= ppc
+#ARCH		?= powerpc
+
+# use ppc_85xx- for MVME3100
+# use ppc_6xx- for MCP750
+# use ppc_74xx- for MVME5500, MVME6100, MVME7100, MCP820, MCP905
+#CROSS_COMPILE	?= ppc_85xx-
+#CROSS_COMPILE	?= ppc_74xx-
+#CROSS_COMPILE	?= ppc_6xx-
+
 # Architecture as present in compile.h
 UTS_MACHINE := $(ARCH)
 

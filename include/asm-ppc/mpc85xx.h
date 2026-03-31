@@ -43,12 +43,28 @@
 	defined(CONFIG_TQM8555) || defined(CONFIG_TQM8560)
 #include <platforms/85xx/tqm85xx.h>
 #endif
+#ifdef CONFIG_MVME3100
+#include <platforms/85xx/mvme3100.h>
+#endif
 
+#ifdef CONFIG_UBOOT
 /*
  * The "residual" board information structure the boot loader passes
  * into the kernel.
  */
 extern unsigned char __res[];
+                                                                                
+#define UBOOT_BINFO()           ((bd_t *)__res)
+#define BINFO_INTFREQ           (UBOOT_BINFO()->bi_intfreq)
+#define BINFO_BUSFREQ           (UBOOT_BINFO()->bi_busfreq)
+#define BINFO_IMMR_BASE         (UBOOT_BINFO()->bi_immr_base)
+#define BINFO_MEMSIZE           (UBOOT_BINFO()->bi_memsize)
+#define BINFO_BRGFREQ           (UBOOT_BINFO()->bi_brgfreq)
+#define BINFO_BAUDRATE          (UBOOT_BINFO()->bi_baudrate)
+#elif !defined(BINFO_INTFREQ)
+#error Either define CONFIG_UBOOT, or hand-define the BINFO_ macros
+#error in your <platforms/board-name.h>
+#endif
 
 /* Offset from CCSRBAR */
 #define MPC85xx_CPM_OFFSET	(0x80000)

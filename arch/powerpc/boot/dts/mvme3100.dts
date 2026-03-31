@@ -1,0 +1,313 @@
+/*
+ * MVME3100 Device Tree Source
+ *
+ * Author; Ajit.Prem@motorola.com
+ *
+ * Copyright 2007 Motorola Inc.
+ *
+ * This program is free software; you can redistribute  it and/or modify it
+ * under  the terms of  the GNU General  Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
+ */
+
+
+/ {
+	model = "MVME3100";
+	compatible = "MVME3100";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		PowerPC,8540@0 {
+			device_type = "cpu";
+			reg = <0>;
+			d-cache-line-size = <20>;	// 32 bytes
+			i-cache-line-size = <20>;	// 32 bytes
+			d-cache-size = <8000>;		// L1=32K
+			i-cache-size = <8000>;		// L1=32K
+			timebase-frequency = <27bc86b>;	// from bootwrapper
+			bus-frequency = <13d92d40>;	// 333 MHz, from bw
+			clock-frequency = <0>;		// from bootwrapper
+			32-bit;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <00000000 10000000>;	// 256M (fixed by bootwrapper)
+	};
+
+	soc8540@e1000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#interrupt-cells = <2>;
+		device_type = "soc";
+		ranges = <0 e1000000 00100000>;
+		reg = <e1000000 00100000>;	
+		bus-frequency = <13d92d40>;		// 333 MHz
+
+		ddr@2000 {
+			device_type = "ddr";
+			reg = <2000 e60>;
+			virtual-reg = <e1002000>;
+			interrupts = <02 2>;
+			interrupt-parent = <&soc8540_pic>;
+		};
+
+		l2_cache@20000 {
+			device_type = "l2_cache";
+			reg = <20000 e60>;
+			virtual-reg = <e1020000>;
+			interrupts = <00 2>;
+			interrupt-parent = <&soc8540_pic>;
+		};
+
+		i2c@3000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "i2c";
+			compatible = "fsl-i2c";
+			reg = <3000 100>;
+			virtual-reg = <e1003000>;
+			interrupts = <1b 2>;
+			interrupt-parent = <&soc8540_pic>;
+			dfsrr;
+
+			ds1621@90 {
+				device_type = "thermostat";
+				reg = <90>;
+				parent = "/soc8540@e1000000/i2c@3000";
+				interrupts = <39 1>;
+				interrupt-parent = <&soc8540_pic>;
+			};
+		};
+	
+		mdio@24520 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "mdio";
+			compatible = "gianfar";
+			reg = <24520 20>;
+			phy1:ethernet-phy@1 {
+				device_type = "ethernet-phy";
+				compatible = "bcm5461";
+				interrupt-parent = <&soc8540_pic>;
+				interrupts = <3a 1>;
+				reg = <1>;
+			};
+			phy2:ethernet-phy@2 {
+				device_type = "ethernet-phy";
+				compatible = "bcm5461";
+				interrupt-parent = <&soc8540_pic>;
+				interrupts = <3a 1>;
+				reg = <2>;
+			};
+			phy3:ethernet-phy@3 {
+				device_type = "ethernet-phy";
+				compatible = "bcm5421";
+				interrupt-parent = <&soc8540_pic>;
+				interrupts = <3a 1>;
+				reg = <3>;
+			};
+		};
+
+		ethernet@24000 { /* MAC addresses set by bootwrapper */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "TSEC";
+			compatible = "gianfar";
+			reg = <24000 1000>;
+			address = [ 00 00 00 00 00 00 ];
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <d 2 e 2 12 2>;
+			interrupt-parent = <&soc8540_pic>;
+			phy-handle = <&phy1>;
+		};
+
+		ethernet@25000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "TSEC";
+			compatible = "gianfar";
+			reg = <25000 1000>;
+			address = [ 00 00 00 00 00 00 ];
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <13 2 14 2 18 2>;
+			interrupt-parent = <&soc8540_pic>;
+			phy-handle = <&phy2>;
+		};
+
+		ethernet@26000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "network";
+			model = "FEC";
+			compatible = "gianfar";
+			reg = <26000 1000>;
+			address = [ 00 00 00 00 00 00 ];
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			interrupts = <19 2>;
+			interrupt-parent = <&soc8540_pic>;
+			phy-handle = <&phy3>;
+		};
+
+		dma@e2021100 {
+			device_type = "soc_dma";
+			reg = <21100 204>;
+			interrupts = <4 2 5 2 6 2 7 2>;
+			interrupt-parent = <&soc8540_pic>;
+		};
+
+
+		serial@4500 {
+			device_type = "serial";
+			compatible = "ns16550";
+			reg = <4500 100>; 	
+			virtual-reg = <e1004500>;
+			clock-frequency = <13D92D40>; 	
+			current-speed = <2580>;  // 9600=0x2580
+			interrupts = <1a 2>;
+			interrupt-parent = <&soc8540_pic>;
+		};
+
+		pci@8000 {
+			#address-cells = <3>;
+			#size-cells = <2>;
+			#interrupt-cells = <1>;
+			device_type = "pci";
+			compatible = "fsl,mpc85xx-pcix", "fsl,mpc85xx-pci", "85xx";
+			reg = <8000 1000>;
+			ranges = <02000000 0 80000000 80000000 0 60000000
+				  01000000 0 00000000 e0000000 0 01000000>;
+			bus-range = <0 ff>;
+			clock-frequency = <27b25a80>;
+			interrupt-parent = <&soc8540_pic>;
+			interrupt-map-mask = <f800 0 0 7>;
+			interrupt-map = <
+				/* IDSEL 0x01 */
+				0800 0 0 1 &/soc8540@e1000000/pic@40000 30 1
+				0800 0 0 2 &/soc8540@e1000000/pic@40000 31 1
+				0800 0 0 3 &/soc8540@e1000000/pic@40000 32 1
+				0800 0 0 4 &/soc8540@e1000000/pic@40000 33 1
+
+				/* IDSEL 0x02 */
+				1000 0 0 1 &/soc8540@e1000000/pic@40000 34 1
+				1000 0 0 2 &/soc8540@e1000000/pic@40000 35 1
+				1000 0 0 3 &/soc8540@e1000000/pic@40000 36 1
+				1000 0 0 4 &/soc8540@e1000000/pic@40000 37 1
+
+				/* IDSEL 0x03 */
+				1800 0 0 1 &/soc8540@e1000000/pic@40000 34 1
+				1800 0 0 2 &/soc8540@e1000000/pic@40000 35 1
+				1800 0 0 3 &/soc8540@e1000000/pic@40000 36 1
+				1800 0 0 4 &/soc8540@e1000000/pic@40000 37 1
+
+				/* IDSEL 0x04 */
+				2000 0 0 1 &/soc8540@e1000000/pic@40000 32 1
+				2000 0 0 2 &/soc8540@e1000000/pic@40000 32 1
+				2000 0 0 3 &/soc8540@e1000000/pic@40000 32 1
+				2000 0 0 4 &/soc8540@e1000000/pic@40000 32 1
+
+				/* IDSEL 0x11 */
+				8800 0 0 1 &/soc8540@e1000000/pic@40000 30 1
+				8800 0 0 2 &/soc8540@e1000000/pic@40000 31 1
+				8800 0 0 3 &/soc8540@e1000000/pic@40000 32 1
+				8800 0 0 4 &/soc8540@e1000000/pic@40000 33 1
+
+				/* IDSEL 0x12 */
+				9000 0 0 1 &/soc8540@e1000000/pic@40000 34 1
+				9000 0 0 2 &/soc8540@e1000000/pic@40000 35 1
+				9000 0 0 3 &/soc8540@e1000000/pic@40000 36 1
+				9000 0 0 4 &/soc8540@e1000000/pic@40000 37 1
+
+				/* IDSEL 0x13 */
+				9800 0 0 1 &/soc8540@e1000000/pic@40000 34 1
+				9800 0 0 2 &/soc8540@e1000000/pic@40000 35 1
+				9800 0 0 3 &/soc8540@e1000000/pic@40000 36 1
+				9800 0 0 4 &/soc8540@e1000000/pic@40000 37 1
+
+				/* IDSEL 0x14 */
+				a000 0 0 1 &/soc8540@e1000000/pic@40000 32 1
+				a000 0 0 2 &/soc8540@e1000000/pic@40000 32 1
+				a000 0 0 3 &/soc8540@e1000000/pic@40000 32 1
+				a000 0 0 4 &/soc8540@e1000000/pic@40000 32 1
+			>;
+			interrupts = <08 2>;
+		};
+
+		soc8540_pic:pic@40000 {
+			clock-frequency = <0>;
+			interrupt-controller;
+			#address-cells = <0>;
+			#interrupt-cells = <2>;
+			reg = <40000 40000>;
+			built-in;
+			compatible = "chrp,open-pic";
+			device_type = "open-pic";
+			big-endian;
+		};
+	};
+
+	board_timers@e2020000 {
+		device_type = "board_timers";
+		reg = <e2020000 4c>;
+		interrupts = <31 1>;
+		interrupt-parent = <&soc8540_pic>;
+	};
+	
+	serial@e2011000 {
+		device_type = "serial";
+		compatible = "ns16550";
+		reg = <e2011000 100>; 
+		virtual-reg = <e2011000>;
+		clock-frequency = <1c2000>; 	
+		current-speed = <2580>;  // 9600=0x2580
+		interrupts = <33 1>;
+		interrupt-parent = <&soc8540_pic>;
+	};
+
+	serial@e2012000 {
+		device_type = "serial";
+		compatible = "ns16550";
+		reg = <e2012000 100>; 
+		virtual-reg = <e2012000>;
+		clock-frequency = <1c2000>; 	
+		current-speed = <2580>;  // 9600=0x2580
+		interrupts = <33 1>;
+		interrupt-parent = <&soc8540_pic>;
+	};
+
+	serial@e2013000 {
+		device_type = "serial";
+		compatible = "ns16550";
+		reg = <e2013000 100>; 
+		virtual-reg = <e2013000>;
+		clock-frequency = <1c2000>; 	
+		current-speed = <2580>;  // 9600=0x2580
+		interrupts = <33 1>;
+		interrupt-parent = <&soc8540_pic>;
+	};
+
+	serial@e2014000 {
+		device_type = "serial";
+		compatible = "ns16550";
+		reg = <e2014000 100>; 
+		virtual-reg = <e2014000>;
+		clock-frequency = <1c2000>; 	
+		current-speed = <2580>;  // 9600=0x2580
+		interrupts = <33 1>;
+		interrupt-parent = <&soc8540_pic>;
+	};
+
+	chosen {
+		name = "chosen";
+		bootargs = "root=/dev/sda2 console=ttyS0,9600";
+		linux,stdout-path = "/soc8540@e1000000/serial@4500";
+	};
+};

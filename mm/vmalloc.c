@@ -380,7 +380,7 @@ EXPORT_SYMBOL(vfree);
  */
 void vunmap(void *addr)
 {
-	BUG_ON(in_interrupt());
+//	BUG_ON(in_interrupt());
 	__vunmap(addr, 0);
 }
 EXPORT_SYMBOL(vunmap);

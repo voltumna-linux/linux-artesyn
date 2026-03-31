@@ -72,6 +72,59 @@
 #define PMRN_UPMLCB3	0x103	/* User PM Local Control B3 */
 #define PMRN_UPMGC0	0x180	/* User PM Global Control 0 */
 
+/* Freescale Book E Performance Monitor APU Registers */
+#define PMRN_PMC0       0x010   /* Performance Monitor Counter 0 */
+#define PMRN_PMC1       0x011   /* Performance Monitor Counter 1 */
+#define PMRN_PMC2       0x012   /* Performance Monitor Counter 1 */
+#define PMRN_PMC3       0x013   /* Performance Monitor Counter 1 */
+#define PMRN_PMLCA0     0x090   /* PM Local Control A0 */
+#define PMRN_PMLCA1     0x091   /* PM Local Control A1 */
+#define PMRN_PMLCA2     0x092   /* PM Local Control A2 */
+#define PMRN_PMLCA3     0x093   /* PM Local Control A3 */
+
+#define PMLCA_FC        0x80000000      /* Freeze Counter */
+#define PMLCA_FCS       0x40000000      /* Freeze in Supervisor */
+#define PMLCA_FCU       0x20000000      /* Freeze in User */
+#define PMLCA_FCM1      0x10000000      /* Freeze when PMM==1 */
+#define PMLCA_FCM0      0x08000000      /* Freeze when PMM==0 */
+#define PMLCA_CE        0x04000000      /* Condition Enable */
+
+#define PMLCA_EVENT_MASK 0x007f0000     /* Event field */
+#define PMLCA_EVENT_SHIFT       16
+
+#define PMRN_PMLCB0     0x110   /* PM Local Control B0 */
+#define PMRN_PMLCB1     0x111   /* PM Local Control B1 */
+#define PMRN_PMLCB2     0x112   /* PM Local Control B2 */
+#define PMRN_PMLCB3     0x113   /* PM Local Control B3 */
+
+#define PMLCB_THRESHMUL_MASK    0x0700  /* Threshhold Multiple Field */
+#define PMLCB_THRESHMUL_SHIFT   8
+
+#define PMLCB_THRESHOLD_MASK    0x003f  /* Threshold Field */
+#define PMLCB_THRESHOLD_SHIFT   0
+
+#define PMRN_PMGC0      0x190   /* PM Global Control 0 */
+
+#define PMGC0_FAC       0x80000000      /* Freeze all Counters */
+#define PMGC0_PMIE      0x40000000      /* Interrupt Enable */
+#define PMGC0_FCECE     0x20000000      /* Freeze countes on
+                                           Enabled Condition or
+                                           Event */
+
+#define PMRN_UPMC0      0x000   /* User Performance Monitor Counter 0 */
+#define PMRN_UPMC1      0x001   /* User Performance Monitor Counter 1 */
+#define PMRN_UPMC2      0x002   /* User Performance Monitor Counter 1 */
+#define PMRN_UPMC3      0x003   /* User Performance Monitor Counter 1 */
+#define PMRN_UPMLCA0    0x080   /* User PM Local Control A0 */
+#define PMRN_UPMLCA1    0x081   /* User PM Local Control A1 */
+#define PMRN_UPMLCA2    0x082   /* User PM Local Control A2 */
+#define PMRN_UPMLCA3    0x083   /* User PM Local Control A3 */
+#define PMRN_UPMLCB0    0x100   /* User PM Local Control B0 */
+#define PMRN_UPMLCB1    0x101   /* User PM Local Control B1 */
+#define PMRN_UPMLCB2    0x102   /* User PM Local Control B2 */
+#define PMRN_UPMLCB3    0x103   /* User PM Local Control B3 */
+#define PMRN_UPMGC0     0x180   /* User PM Global Control 0 */
+
 
 /* Machine State Register (MSR) Fields */
 #define MSR_UCLE	(1<<26)	/* User-mode cache lock enable */
@@ -86,7 +139,7 @@
 #if defined (CONFIG_40x)
 #define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_IR|MSR_DR|MSR_CE)
 #elif defined(CONFIG_BOOKE)
-#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE)
+#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_DE)
 #endif
 
 /* Special Purpose Registers (SPRNs)*/
@@ -125,6 +178,8 @@
 #define SPRN_SPEFSCR	0x200	/* SPE & Embedded FP Status & Control */
 #define SPRN_BBEAR	0x201	/* Branch Buffer Entry Address Register */
 #define SPRN_BBTAR	0x202	/* Branch Buffer Target Address Register */
+#define SPRN_L1CFG0	0x203	/* L1 Cache Configuration Register 0  */
+#define SPRN_L1CFG1	0x204	/* L1 Cache Configuration Register 1  */
 #define SPRN_IVOR32	0x210	/* Interrupt Vector Offset Register 32 */
 #define SPRN_IVOR33	0x211	/* Interrupt Vector Offset Register 33 */
 #define SPRN_IVOR34	0x212	/* Interrupt Vector Offset Register 34 */
@@ -321,8 +376,17 @@
 #define DBCR0_FT	0x00000001	/* Freeze Timers on debug event */
 
 /* Bit definitions related to the TCR. */
-#define TCR_WP(x)	(((x)&0x3)<<30)	/* WDT Period */
-#define TCR_WP_MASK	TCR_WP(3)
+#ifdef CONFIG_E500
+#define TCR_WP(x)       ((((x)&0x3c)<<15)|(((x)&0x3)<<30))      /* WDT Period */
+#define TCR_WP_MASK     TCR_WP(0x3f)
+#define TCR_FP(x)       ((((x)&0x3c)<<11)|(((x)&0x3)<<24))      /* FIT Period */
+#define TCR_FP_MASK     TCR_FP(0x3f)
+#else /* 4xx series */
+#define TCR_WP(x)       (((x)&0x3)<<30) /* WDT Period */
+#define TCR_WP_MASK     TCR_WP(3)
+#define TCR_FP(x)       (((x)&0x3)<<24) /* FIT Period */
+#define TCR_FP_MASK     TCR_FP(3)
+#endif
 #define WP_2_17		0		/* 2^17 clocks */
 #define WP_2_21		1		/* 2^21 clocks */
 #define WP_2_25		2		/* 2^25 clocks */
@@ -336,8 +400,6 @@
 #define TCR_WIE		0x08000000	/* WDT Interrupt Enable */
 #define TCR_PIE		0x04000000	/* PIT Interrupt Enable */
 #define TCR_DIE		TCR_PIE		/* DEC Interrupt Enable */
-#define TCR_FP(x)	(((x)&0x3)<<24)	/* FIT Period */
-#define TCR_FP_MASK	TCR_FP(3)
 #define FP_2_9		0		/* 2^9 clocks */
 #define FP_2_13		1		/* 2^13 clocks */
 #define FP_2_17		2		/* 2^17 clocks */

@@ -32,13 +32,13 @@
 #define MTD_ERASE_FAILED        0x10
 
 /* If the erase fails, fail_addr might indicate exactly which block failed.  If
-   fail_addr = 0xffffffff, the failure was not at the device level or was not
+   fail_addr = 0xffffffffffffffff, the failure was not at the device level or was not
    specific to any particular block. */
 struct erase_info {
 	struct mtd_info *mtd;
-	u_int32_t addr;
+	u_int64_t addr;
 	u_int32_t len;
-	u_int32_t fail_addr;
+	u_int64_t fail_addr;
 	u_long time;
 	u_long retries;
 	u_int dev;
@@ -101,6 +101,15 @@ struct mtd_info {
 	u_char type;
 	u_int32_t flags;
 	u_int32_t size;	 // Total size of the MTD
+
+	/* 'size' is becoming problematic as flash densities increase.  Since
+	* the device's size can be calculated by multiplying the number of
+	 * erase blocks by the size of the erase block, I've added a new
+	 * field 'num_eraseblocks', and wrapped it up in a inline function
+	 * (see below).
+	 */
+	u_int64_t num_eraseblocks;
+
 
 	/* "Major" erase size for the device. Naïve users may take this
 	 * to be the only erase size available, or may use the more detailed
@@ -185,8 +194,8 @@ struct mtd_info {
 	void (*sync) (struct mtd_info *mtd);
 
 	/* Chip-supported device locking */
-	int (*lock) (struct mtd_info *mtd, loff_t ofs, size_t len);
-	int (*unlock) (struct mtd_info *mtd, loff_t ofs, size_t len);
+	int (*lock) (struct mtd_info *mtd, loff_t ofs, u_int64_t len);
+	int (*unlock) (struct mtd_info *mtd, loff_t ofs, u_int64_t len);
 
 	/* Power Management functions */
 	int (*suspend) (struct mtd_info *mtd);
@@ -215,6 +224,16 @@ struct mtd_info {
 	int (*get_device) (struct mtd_info *mtd);
 	void (*put_device) (struct mtd_info *mtd);
 };
+
+/*
+ * Inline function for determining the size of the MTD device, independant
+ * of old or new way of doing things.
+ *
+ */
+static inline u_int64_t device_size(struct mtd_info *a)
+{
+	return a->num_eraseblocks == 0 ? a->size : a->num_eraseblocks * a->erasesize;
+}
 
 
 	/* Kernel-side ioctl definitions */

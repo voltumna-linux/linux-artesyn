@@ -560,7 +560,7 @@ int phy_start_interrupts(struct phy_device *phydev)
 
 	if (request_irq(phydev->irq, phy_interrupt,
 				IRQF_SHARED,
-				"phy_interrupt",
+				"phy",
 				phydev) < 0) {
 		printk(KERN_WARNING "%s: Can't get IRQ %d (PHY)\n",
 				phydev->bus->name,

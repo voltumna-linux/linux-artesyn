@@ -337,7 +337,7 @@ bad_page_fault(struct pt_regs *regs, unsigned long address, int sig)
 	die("kernel access of bad area", regs, sig);
 }
 
-#ifdef CONFIG_8xx
+#if defined(CONFIG_8xx) || defined(CONFIG_GT64260_ETH)
 
 /* The pgtable.h claims some functions generically exist, but I
  * can't find them......

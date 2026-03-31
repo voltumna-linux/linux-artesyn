@@ -40,6 +40,7 @@ extern struct hw_interrupt_type open_pic_ipi;
 extern u_int OpenPIC_NumInitSenses;
 extern u_char *OpenPIC_InitSenses;
 extern void __iomem * OpenPIC_Addr;
+extern void __iomem * OpenPIC2_Addr;
 extern int epic_serial_mode;
 
 /* Exported functions */

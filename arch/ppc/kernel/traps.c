@@ -39,6 +39,7 @@
 #include <asm/pmc.h>
 
 #ifdef CONFIG_XMON
+extern int xmon(struct pt_regs *regs);
 extern int xmon_bpt(struct pt_regs *regs);
 extern int xmon_sstep(struct pt_regs *regs);
 extern int xmon_iabr_match(struct pt_regs *regs);

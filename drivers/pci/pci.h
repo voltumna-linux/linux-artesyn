@@ -1,5 +1,9 @@
 /* Functions internal to the PCI core code */
 
+extern void pci_release_bus_bridge_dev(struct device *dev);
+extern void release_pcibus_dev(struct class_device *class_dev);
+extern struct class pcibus_class; 
+
 extern int __must_check __pci_enable_device(struct pci_dev *);
 extern int pci_uevent(struct device *dev, char **envp, int num_envp,
 		      char *buffer, int buffer_size);

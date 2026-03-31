@@ -45,6 +45,13 @@ config MTD_NAND_EDB7312
 	  This enables the driver for the Cirrus Logic EBD7312 evaluation
 	  board to access the onboard NAND Flash.
 
+config MTD_NAND_MVME7100
+	tristate "Support for the MVME7100 board"
+	depends on MTD_NAND && MVME7100
+	help
+	  This enables the driver for the onboard NAND flash on 
+          the Motorola MVME7100 board.
+
 config MTD_NAND_H1900
 	tristate "iPAQ H1900 flash"
 	depends on MTD_NAND && ARCH_PXA && MTD_PARTITIONS

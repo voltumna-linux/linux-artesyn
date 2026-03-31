@@ -566,8 +566,9 @@ irqreturn_t tulip_interrupt(int irq, void *dev_instance)
 
 		if (csr5 & (TxNoBuf | TxDied | TxIntr | TimerInt)) {
 			unsigned int dirty_tx;
+			unsigned long flags;
 
-			spin_lock(&tp->lock);
+			spin_lock_irqsave(&tp->lock, flags);
 
 			for (dirty_tx = tp->dirty_tx; tp->cur_tx - dirty_tx > 0;
 				 dirty_tx++) {
@@ -639,7 +640,7 @@ irqreturn_t tulip_interrupt(int irq, void *dev_instance)
 						   dev->name, csr5, ioread32(ioaddr + CSR6), tp->csr6);
 				tulip_restart_rxtx(tp);
 			}
-			spin_unlock(&tp->lock);
+			spin_unlock_irqrestore(&tp->lock, flags);
 		}
 
 		/* Log errors. */

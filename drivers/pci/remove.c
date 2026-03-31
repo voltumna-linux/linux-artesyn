@@ -32,7 +32,7 @@ static void pci_stop_dev(struct pci_dev *dev)
 	}
 }
 
-static void pci_destroy_dev(struct pci_dev *dev)
+void pci_destroy_dev(struct pci_dev *dev)
 {
 	pci_stop_dev(dev);
 
@@ -46,6 +46,7 @@ static void pci_destroy_dev(struct pci_dev *dev)
 	pci_free_resources(dev);
 	pci_dev_put(dev);
 }
+EXPORT_SYMBOL(pci_destroy_dev);
 
 /**
  * pci_remove_device_safe - remove an unused hotplug device

@@ -659,6 +659,9 @@ void gfar_start(struct net_device *dev)
 
 	/* Unmask the interrupts we look for */
 	gfar_write(&regs->imask, IMASK_DEFAULT);
+
+	/* Clear the halt bit in RSTAT */
+	gfar_write(&priv->regs->rstat, RSTAT_CLEAR_RHALT);
 }
 
 /* Bring the controller up and running */
@@ -1938,7 +1941,7 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
 
 	/* Hmm... */
 	if (netif_msg_rx_err(priv) || netif_msg_tx_err(priv))
-		printk(KERN_DEBUG "%s: error interrupt (ievent=0x%08x imask=0x%08x)\n",
+		printk(KERN_INFO "%s: error interrupt (ievent=0x%08x imask=0x%08x)\n",
 				dev->name, events, gfar_read(&priv->regs->imask));
 
 	/* Update the error counters */
@@ -1951,7 +1954,7 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
 			priv->stats.tx_aborted_errors++;
 		if (events & IEVENT_XFUN) {
 			if (netif_msg_tx_err(priv))
-				printk(KERN_DEBUG "%s: underrun.  packet dropped.\n",
+				printk(KERN_INFO "%s: underrun.  packet dropped.\n",
 						dev->name);
 			priv->stats.tx_dropped++;
 			priv->extra_stats.tx_underrun++;
@@ -1960,7 +1963,7 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
 			gfar_write(&priv->regs->tstat, TSTAT_CLEAR_THALT);
 		}
 		if (netif_msg_tx_err(priv))
-			printk(KERN_DEBUG "%s: Transmit Error\n", dev->name);
+			printk(KERN_INFO "%s: Transmit Error\n", dev->name);
 	}
 	if (events & IEVENT_BSY) {
 		priv->stats.rx_errors++;
@@ -1974,7 +1977,7 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
 #endif
 
 		if (netif_msg_rx_err(priv))
-			printk(KERN_DEBUG "%s: busy error (rhalt: %x)\n",
+			printk(KERN_INFO "%s: busy error (rhalt: %x)\n",
 					dev->name,
 					gfar_read(&priv->regs->rstat));
 	}
@@ -1983,21 +1986,21 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
 		priv->extra_stats.rx_babr++;
 
 		if (netif_msg_rx_err(priv))
-			printk(KERN_DEBUG "%s: babbling error\n", dev->name);
+			printk(KERN_INFO "%s: babbling error\n", dev->name);
 	}
 	if (events & IEVENT_EBERR) {
 		priv->extra_stats.eberr++;
 		if (netif_msg_rx_err(priv))
-			printk(KERN_DEBUG "%s: EBERR\n", dev->name);
+			printk(KERN_INFO "%s: EBERR\n", dev->name);
 	}
 	if ((events & IEVENT_RXC) && netif_msg_rx_status(priv))
 		if (netif_msg_rx_status(priv))
-			printk(KERN_DEBUG "%s: control frame\n", dev->name);
+			printk(KERN_INFO "%s: control frame\n", dev->name);
 
 	if (events & IEVENT_BABT) {
 		priv->extra_stats.tx_babt++;
 		if (netif_msg_tx_err(priv))
-			printk(KERN_DEBUG "%s: babt error\n", dev->name);
+			printk(KERN_INFO "%s: babt error\n", dev->name);
 	}
 	return IRQ_HANDLED;
 }

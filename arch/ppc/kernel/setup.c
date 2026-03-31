@@ -52,6 +52,9 @@
 #include <asm/kgdb.h>
 #endif
 
+extern void xmon_init(int arg);
+extern int xmon(struct pt_regs *excp);
+
 extern void platform_init(unsigned long r3, unsigned long r4,
 		unsigned long r5, unsigned long r6, unsigned long r7);
 extern void reloc_got2(unsigned long offset);

@@ -101,7 +101,7 @@ pci_update_resource(struct pci_dev *dev, struct resource *res, int resno)
 		new & ~PCI_REGION_FLAG_MASK);
 }
 
-int __devinit
+int 
 pci_claim_resource(struct pci_dev *dev, int resource)
 {
 	struct resource *res = &dev->resource[resource];
@@ -212,7 +212,7 @@ EXPORT_SYMBOL_GPL(pci_assign_resource_fixed);
 #endif
 
 /* Sort resources by alignment */
-void __devinit
+void 
 pdev_sort_resources(struct pci_dev *dev, struct resource_list *head)
 {
 	int i;

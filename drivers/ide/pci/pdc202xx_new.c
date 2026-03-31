@@ -37,7 +37,8 @@
 #include <asm/pci-bridge.h>
 #endif
 
-#define PDC202_DEBUG_CABLE	0
+#undef PDC202_DEBUG_CABLE
+#define DISPLAY_PDC202XX_TIMINGS
 
 #undef DEBUG
 
@@ -46,6 +47,102 @@
 #else
 #define DBG(fmt, args...)
 #endif
+
+#if defined(DISPLAY_PDC202XX_TIMINGS) && defined(CONFIG_PROC_FS)
+#include <linux/stat.h>
+#include <linux/proc_fs.h>
+                                                                                
+static u8 pdcnew_proc;
+                                                                                
+#define PDC_MAX_DEVS            5
+                                                                                
+static struct pci_dev *pdc_devs[PDC_MAX_DEVS];
+static int n_pdc_devs;
+                                                                                
+#define PDC_STATUS_PRI  0x1002
+#define PDC_SYS_CTL     0x1100
+#define PDC_ATA_CTL     0x1104
+#define PDC_GLOBAL_CTL  0x1108
+#define PDC_CTCR0_DRV0  0x110C
+#define PDC_CTCR1_DRV0  0x1110
+#define PDC_BYTE_COUNT  0x1120
+#define PDC_PLL_CTL     0x1202
+                                                                                
+
+static char *pdc_get_info (char *buf, struct pci_dev *dev, int index)
+{
+        char *p = buf;
+
+	p += sprintf(p, "\nController: %d\n", index);
+        switch (dev->device) {
+        case PCI_DEVICE_ID_PROMISE_20277:
+                p += sprintf(p, "SBFastTrak 133 Lite");
+                break;
+        case PCI_DEVICE_ID_PROMISE_20276:
+                p += sprintf(p, "MBFastTrak 133 Lite");
+                break;
+        case PCI_DEVICE_ID_PROMISE_20275:
+                p += sprintf(p, "MBUltra133");
+                break;
+        case PCI_DEVICE_ID_PROMISE_20271:
+                p += sprintf(p, "FastTrak TX2000");
+                break;
+        case PCI_DEVICE_ID_PROMISE_20270:
+                p += sprintf(p, "FastTrak LP/TX2/TX4");
+                break;
+        case PCI_DEVICE_ID_PROMISE_20269:
+                p += sprintf(p, "Ultra133 TX2");
+                break;
+        case PCI_DEVICE_ID_PROMISE_20268:
+                p += sprintf(p, "Ultra100 TX2");
+                break;
+        default:
+                p += sprintf(p, "Ultra series");
+                break;
+        }
+        p += sprintf(p, " Chipset.\n");
+                                                                                
+        {
+                u8 *mmio;
+                u32 sys_ctl, global_ctl, ctcr0, ctcr1;
+                u8 ata_ctl, status;
+                u16 pll_ctl;
+                                                                                
+                mmio =
+                    ioremap(pci_resource_start(dev, 5),
+                            pci_resource_len(dev, 5));
+                pll_ctl = readw(mmio + PDC_PLL_CTL);
+                ctcr0 = readl(mmio + PDC_CTCR0_DRV0);
+                ctcr1 = readl(mmio + PDC_CTCR1_DRV0);
+                sys_ctl = readl(mmio + PDC_SYS_CTL);
+                global_ctl = readl(mmio + PDC_GLOBAL_CTL);
+                ata_ctl = readb(mmio + PDC_ATA_CTL);
+                status = readb(mmio + PDC_STATUS_PRI);
+                                                                                
+                p += sprintf(p,
+                             "PLL_CTL:\t0x%04x\nGLOBAL_CTL:\t0x%08x\nSYS_CTL:\t0x%08x\nATA_CTL:\t0x%02x\nCTCR0(DRV0):\t0x%08x\nCTCR1(DRV0):\t0x%08X\nSTATUS(PRI):\t0x%02x\n",
+                             pll_ctl, global_ctl, sys_ctl, ata_ctl, ctcr0,
+                             ctcr1, status);
+                iounmap(mmio);
+        }
+                                                                                
+        return (char *)p;
+}
+
+static int
+pdcnew_get_info(char *buffer, char **addr, off_t offset, int count)
+{
+        char *p = buffer;
+        int i;
+                                                                                
+        for (i = 0; i < n_pdc_devs; i++) {
+                struct pci_dev *dev = pdc_devs[i];
+		p = pdc_get_info(p, dev, i);
+        }
+        /* p - buffer must be less than 4k! */
+	return p - buffer;
+}
+#endif	/* defined(DISPLAY_PDC202XX_TIMINGS) && defined(CONFIG_PROC_FS) */
 
 static const char *pdc_quirk_drives[] = {
 	"QUANTUM FIREBALLlct08 08",
@@ -578,7 +675,16 @@ static unsigned int __devinit init_chipset_pdcnew(struct pci_dev *dev, const cha
 	DBG("pll_ctl[%02X][%02X]\n", pll_ctl0, pll_ctl1);
 #endif
 
- out:
+#if defined(DISPLAY_PDC202XX_TIMINGS) && defined(CONFIG_PROC_FS)
+        pdc_devs[n_pdc_devs++] = dev;
+                                                                                
+        if (!pdcnew_proc) {
+                pdcnew_proc = 1;
+                ide_pci_create_host_proc("pdc202xx", pdcnew_get_info);
+        }
+#endif	/* DISPLAY_PDC202XX_TIMINGS && CONFIG_PROC_FS */
+
+out:
 	return dev->irq;
 }
 
@@ -595,6 +701,7 @@ static void __devinit init_hwif_pdc202new(ide_hwif_t *hwif)
 
 	hwif->ultra_mask = 0x7f;
 	hwif->mwdma_mask = 0x07;
+	hwif->swdma_mask = 0x07;
 
 	hwif->err_stops_fifo = 1;
 
@@ -609,8 +716,8 @@ static void __devinit init_hwif_pdc202new(ide_hwif_t *hwif)
 		hwif->autodma = 1;
 	hwif->drives[0].autodma = hwif->drives[1].autodma = hwif->autodma;
 
-#if PDC202_DEBUG_CABLE
-	printk(KERN_DEBUG "%s: %s-pin cable\n",
+#ifdef PDC202_DEBUG_CABLE
+	printk(KERN_INFO "%s: %s-pin cable\n",
 		hwif->name, hwif->udma_four ? "80" : "40");
 #endif /* PDC202_DEBUG_CABLE */
 }
@@ -640,7 +747,8 @@ static int __devinit init_setup_pdc20270(struct pci_dev *dev,
 					findev->irq = dev->irq;
 				}
 				ret = ide_setup_pci_devices(dev, findev, d);
-				pci_dev_put(findev);
+				if (ret < 0)
+					pci_dev_put(findev);
 				return ret;
 			}
 		}

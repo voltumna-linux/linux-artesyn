@@ -20,7 +20,7 @@ static unsigned char cached_8259[2] = { 0xff, 0xff };
 
 static DEFINE_SPINLOCK(i8259_lock);
 
-static int i8259_pic_irq_offset;
+int i8259_pic_irq_offset;
 
 /*
  * Acknowledge the IRQ using either the PCI host bridge's interrupt
@@ -124,7 +124,7 @@ static void i8259_unmask_irq(unsigned int irq_nr)
 	spin_unlock_irqrestore(&i8259_lock, flags);
 }
 
-static struct irq_chip i8259_pic = {
+struct irq_chip i8259_pic = {
 	.typename	= " i8259    ",
 	.mask		= i8259_mask_irq,
 	.unmask		= i8259_unmask_irq,

@@ -253,6 +253,11 @@ flush_instruction_cache:
 	addi	r3,r3,0x10		# Increment by one cache line
 	cmplw	cr0,r3,r4		# Are we at the end yet?
 	blt	1b			# No, keep flushing and invalidating
+#elif CONFIG_FSL_BOOKE
+	mfspr	r3,SPRN_L1CSR1
+	ori	r3,r3,L1CSR1_ICFI|L1CSR1_ICLFR
+	mtspr	SPRN_L1CSR1,r3
+	isync
 #else
 	/* Enable, invalidate and then disable the L1 icache/dcache. */
 	li	r3,0

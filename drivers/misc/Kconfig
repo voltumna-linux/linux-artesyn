@@ -88,4 +88,27 @@ config MSI_LAPTOP
 
 	  If you have an MSI S270 laptop, say Y or M here.
 
+config MV64360_IDMA
+	tristate "Device driver for the Marvell MV64360 IDMA controller"
+	depends on MV64360 
+	---help---
+	  This option enables driver support for the Marvell MV64360 IDMA 
+          controller. This driver uses a dynamic major number. The dynamic 
+          major number claimed by this driver can be determined by checking 
+          the major number associated with the mv64360_dma device in 
+          /proc/devices. Minor numbers 0..3 are used for the 4 IDMA channels.
+
+          If your board uses the Marvell MV64360 controller (like Motorola's 
+          MVME6100 or MCP905 boards), say Y, otherwise, say N. 
+           
+config MPC85xx_DMA
+	tristate "Device driver for the MPC85xx DMA controller"
+	depends on MPC8540 
+	---help---
+	  This option enables driver support for the Freescale MPC8540 DMA 
+	  controller.
+
+          If your board uses the MPC8540 DMA controller (like Motorola's 
+          MVME3100 board), say Y, otherwise, say N. 
+
 endmenu

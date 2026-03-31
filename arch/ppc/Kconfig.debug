@@ -56,7 +56,7 @@ config BDI_SWITCH
 config SERIAL_TEXT_DEBUG
 	bool "Support for early boot texts over serial port"
 	depends on 4xx || LOPEC || MV64X60 || PPLUS || PRPMC800 || \
-		PPC_GEN550 || PPC_MPC52xx
+		PPC_GEN550 || PPC_MPC52xx || PPC_PREP
 
 config PPC_OCP
 	bool

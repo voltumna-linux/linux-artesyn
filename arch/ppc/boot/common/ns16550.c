@@ -5,6 +5,7 @@
 #include <linux/types.h>
 #include <linux/serial.h>
 #include <linux/serial_reg.h>
+#include <asm/irq.h>
 #include <asm/serial.h>
 
 #if defined(CONFIG_XILINX_VIRTEX)
@@ -16,6 +17,16 @@
 #define SERIAL_BAUD	9600
 
 extern unsigned long ISA_io;
+
+#ifdef CONFIG_MVME3100
+
+#define SERIAL_PORT_DFNS        \
+        { 0, MVME3100_BASE_BAUD / 16, 0,                 \
+                MPC85xx_IRQ_DUART,                                      \
+                (ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST),                \
+                iomem_base: (u8 *)MPC85XX_0_SERIAL,                     \
+                io_type: SERIAL_IO_MEM},                                
+#endif
 
 static struct serial_state rs_table[RS_TABLE_SIZE] = {
 	SERIAL_PORT_DFNS	/* Defined in <asm/serial.h> */
@@ -48,6 +59,7 @@ unsigned long serial_init(int chan, void *ignored)
 	/* Base baud.. */
 	base_baud = rs_table[chan].baud_base;
 	
+#ifndef CONFIG_MVME3100
 	/* save the LCR */
 	lcr = inb(com_port + (UART_LCR << shift));
 	/* Access baud rate */
@@ -76,6 +88,7 @@ unsigned long serial_init(int chan, void *ignored)
 	}
 	/* Clear & enable FIFOs */
 	outb(com_port + (UART_FCR << shift), 0x07);
+#endif
 
 	return (com_port);
 }

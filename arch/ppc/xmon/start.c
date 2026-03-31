@@ -16,9 +16,16 @@
 #include <asm/delay.h>
 #include <asm/btext.h>
 #include <asm/ibm4xx.h>
+#ifdef CONFIG_PPC /* RF */
+#include <linux/console.h>
+extern struct console *console_drivers;
+extern int serial_console_receive_char(void);
+#endif
+
 
 static volatile unsigned char *sccc, *sccd;
 unsigned int TXRDY, RXRDY, DLAB;
+extern void xmon_printf(const char *fmt, ...);
 static int xmon_expect(const char *str, unsigned int timeout);
 
 static int via_modem;
@@ -93,6 +100,10 @@ void xmon_init_scc(void);
 int
 xmon_write(void *handle, void *ptr, int nb)
 {
+#ifdef CONFIG_PPC
+        console_drivers->write(console_drivers, ptr, nb);
+#else
+
 	char *p = ptr;
 	int i, c, ct;
 
@@ -129,6 +140,7 @@ xmon_write(void *handle, void *ptr, int nb)
 	if (!locked)
 		clear_bit(0, &xmon_write_lock);
 #endif
+#endif /* CONFIG_PPC */
 	return nb;
 }
 
@@ -141,6 +153,13 @@ xmon_read(void *handle, void *ptr, int nb)
     char *p = ptr;
     int i;
 
+#ifdef CONFIG_PPC
+    for (i = 0; i < nb; ++i) {
+        *p++ = serial_console_receive_char();
+    }
+
+#else /* CONFIG_PPC */
+
     if (!scc_initialized)
 	xmon_init_scc();
     for (i = 0; i < nb; ++i) {
@@ -149,6 +168,8 @@ xmon_read(void *handle, void *ptr, int nb)
 	buf_access();
 	*p++ = *sccd;
     }
+#endif /* CONFIG_PPC */
+
     return i;
 }
 

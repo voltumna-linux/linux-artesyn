@@ -43,7 +43,7 @@
 #define CARDBUS_IO_SIZE		(256)
 #define CARDBUS_MEM_SIZE	(64*1024*1024)
 
-static void __devinit
+static void
 pbus_assign_resources_sorted(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
@@ -150,7 +150,7 @@ EXPORT_SYMBOL(pci_setup_cardbus);
    config space writes, so it's quite possible that an I/O window of
    the bridge will have some undesirable address (e.g. 0) after the
    first write. Ditto 64-bit prefetchable MMIO.  */
-static void __devinit
+static void 
 pci_setup_bridge(struct pci_bus *bus)
 {
 	struct pci_dev *bridge = bus->self;
@@ -227,7 +227,7 @@ pci_setup_bridge(struct pci_bus *bus)
 /* Check whether the bridge supports optional I/O and
    prefetchable memory ranges. If not, the respective
    base/limit registers must be read-only and read as 0. */
-static void __devinit
+static void 
 pci_bridge_check_ranges(struct pci_bus *bus)
 {
 	u16 io;
@@ -266,7 +266,7 @@ pci_bridge_check_ranges(struct pci_bus *bus)
    bus resource of a given type. Note: we intentionally skip
    the bus resources which have already been assigned (that is,
    have non-NULL parent resource). */
-static struct resource * __devinit
+static struct resource * 
 find_free_bus_resource(struct pci_bus *bus, unsigned long type)
 {
 	int i;
@@ -288,7 +288,7 @@ find_free_bus_resource(struct pci_bus *bus, unsigned long type)
    since these windows have 4K granularity and the IO ranges
    of non-bridge PCI devices are limited to 256 bytes.
    We must be careful with the ISA aliasing though. */
-static void __devinit
+static void 
 pbus_size_io(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
@@ -333,7 +333,7 @@ pbus_size_io(struct pci_bus *bus)
 
 /* Calculate the size of the bus and minimal alignment which
    guarantees that all child resources fit in this size. */
-static int __devinit
+static int 
 pbus_size_mem(struct pci_bus *bus, unsigned long mask, unsigned long type)
 {
 	struct pci_dev *dev;
@@ -404,7 +404,7 @@ pbus_size_mem(struct pci_bus *bus, unsigned long mask, unsigned long type)
 	return 1;
 }
 
-static void __devinit
+static void 
 pci_bus_size_cardbus(struct pci_bus *bus)
 {
 	struct pci_dev *bridge = bus->self;
@@ -454,7 +454,7 @@ pci_bus_size_cardbus(struct pci_bus *bus)
 	}
 }
 
-void __devinit
+void 
 pci_bus_size_bridges(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
@@ -505,7 +505,7 @@ pci_bus_size_bridges(struct pci_bus *bus)
 }
 EXPORT_SYMBOL(pci_bus_size_bridges);
 
-void __devinit
+void 
 pci_bus_assign_resources(struct pci_bus *bus)
 {
 	struct pci_bus *b;
@@ -538,7 +538,7 @@ pci_bus_assign_resources(struct pci_bus *bus)
 }
 EXPORT_SYMBOL(pci_bus_assign_resources);
 
-void __init
+void 
 pci_assign_unassigned_resources(void)
 {
 	struct pci_bus *bus;

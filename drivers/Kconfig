@@ -48,6 +48,8 @@ source "drivers/input/Kconfig"
 
 source "drivers/char/Kconfig"
 
+source "drivers/vme/Kconfig"
+
 source "drivers/i2c/Kconfig"
 
 source "drivers/spi/Kconfig"

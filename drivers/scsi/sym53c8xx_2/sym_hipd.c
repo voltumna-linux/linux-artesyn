@@ -748,6 +748,14 @@ static int sym_prepare_setting(struct Scsi_Host *shost, struct sym_hcb *np, stru
 	else				np->minsync = (period + 40 - 1) / 40;
 
 	/*
+         * Added to support 160MB/s on a PPC
+	 */
+	if (np->features & FE_ULTRA3) {
+		if (np->minsync == 10)
+		np->minsync = 9;
+	}
+	
+	/*
 	 * Check against chip SCSI standard support (SCSI-2,ULTRA,ULTRA2).
 	 */
 	if	(np->minsync < 25 &&

@@ -290,6 +290,7 @@ void __init mount_block_root(char *name, int flags)
 #else
 	const char *b = name;
 #endif
+	int retries = 0;
 
 	get_fs_names(fs_names);
 retry:
@@ -311,11 +312,22 @@ retry:
 #ifdef CONFIG_BLOCK
 		__bdevname(ROOT_DEV, b);
 #endif
-		printk("VFS: Cannot open root device \"%s\" or %s\n",
+		printk("VFS: Cannot open root device \"%s\" or %s, retrying in 1s.\n",
 				root_device_name, b);
-		printk("Please append a correct \"root=\" boot option\n");
-
-		panic("VFS: Unable to mount root fs on %s", b);
+                retries++;
+                if (retries < 10) {
+                        /* wait 1 second and try again */
+                        current->state = TASK_INTERRUPTIBLE;
+                        schedule_timeout(HZ);
+                        root_device_name = saved_root_name;
+                        ROOT_DEV = name_to_dev_t(root_device_name);
+                        if (strncmp(root_device_name, "/dev/", 5) == 0)
+                                root_device_name += 5;
+			create_dev("/dev/root", ROOT_DEV);
+                        get_fs_names(fs_names);
+                        goto retry;
+                } else 
+			panic("VFS: Unable to mount root fs on %s", b);
 	}
 
 	printk("No filesystem could mount root, tried: ");

@@ -696,9 +696,22 @@ config NWFLASH
 
 source "drivers/char/hw_random/Kconfig"
 
+config NVRAM_M48TXXX
+        tristate "/dev/nvram_m48txxx support"
+        depends on (MVME5500 || MVME6100 || MCP905)
+        ---help---
+          If you say Y here and create a character special file /dev/nvram
+          with major number 10 and minor number 144 using mknod ("man mknod"),
+          you get read and write access to the 32K bytes of non-volatile
+          memory in the M48TXXX which is used on some embedded boards.
+          If you have one of these boards, say Y.
+                                                                                
+          To compile this driver as a module, choose M here: the
+          module will be called nvram.
+                                                                                
 config NVRAM
 	tristate "/dev/nvram support"
-	depends on ATARI || X86 || ARM || GENERIC_NVRAM
+	depends on (ATARI || X86 || ARM || GENERIC_NVRAM) && !NVRAM_M48TXXX
 	---help---
 	  If you say Y here and create a character special file /dev/nvram
 	  with major number 10 and minor number 144 using mknod ("man mknod"),

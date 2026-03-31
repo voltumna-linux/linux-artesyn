@@ -2734,6 +2734,20 @@ N: Frederic Potter
 E: fpotter@cirpack.com
 D: Some PCI kernel support
 
+N: Ajit Prem
+E: ajit.prem@emerson.com
+D: Added support for the MCP805
+D: Added support for the MCP820
+D: Added support for the MCP905
+D: Added support for the MVME5500
+D: Added support for the MVME6100
+D: Added support for the MVME3100
+D: Added support for the MVME7100
+D: Miscellaneous mods to support the boards above
+S: 2900 South Diablo Way, DW278
+S: Tempe, Arizona  85282
+S: USA
+
 N: Rui Prior
 E: rprior@inescn.pt
 D: ATM device driver for NICStAR based cards

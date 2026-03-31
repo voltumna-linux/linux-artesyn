@@ -605,5 +605,45 @@ config MTD_PLATRAM
 
 	  This selection automatically selects the map_ram driver.
 
+config MTD_MVME7100
+	tristate "Flash device mapped on the MVME7100 board"
+	depends on MVME7100 && MTD_CFI && MTD_PARTITIONS
+	help
+	  This enables access to the Flash on the Motorola ECC
+	  MVME7100 boards.
+	  If you have such a board, say 'Y'.
+
+config MTD_MVME3100
+	tristate "Flash device mapped on the MVME3100 board"
+	depends on MVME3100 && MTD_CFI && MTD_PARTITIONS && 85xx
+	help
+	  This enables access to the Flash on the Motorola ECC
+	  MVME3100 boards.
+	  If you have such a board, say 'Y'.
+
+config MTD_MVME5500
+	tristate "Flash device mapped on the MVME5500 board"
+	depends on MVME5500 && MTD_CFI && MTD_PARTITIONS 
+	help
+	  This enables access to the Flash on the Motorola ECC
+	  MVME5500 boards.
+	  If you have such a board, say 'Y'.
+
+config MTD_MVME6100
+	tristate "Flash device mapped on the MVME6100 board"
+	depends on MVME6100 && MTD_CFI && MTD_PARTITIONS 
+	help
+	  This enables access to the Flash on the Motorola ECC
+	  MVME6100 boards.
+	  If you have such a board, say 'Y'.
+
+config MTD_MCP905
+	tristate "Flash device mapped on the MCP905 board"
+	depends on MCP905 && MTD_CFI && MTD_PARTITIONS 
+	help
+	  This enables access to the Flash on the Motorola ECC
+	  MCP905 boards.
+	  If you have such a board, say 'Y'.
+
 endmenu
 

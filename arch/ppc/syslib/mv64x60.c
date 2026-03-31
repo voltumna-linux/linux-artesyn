@@ -507,7 +507,7 @@ mv64x60_init(struct mv64x60_handle *bh, struct mv64x60_setup_info *si)
 		return -1;
 	}
 
-	bh->ci->disable_all_windows(bh, si);
+//	bh->ci->disable_all_windows(bh, si);
 	mv64x60_get_mem_windows(bh, mem_windows);
 	mv64x60_config_cpu2mem_windows(bh, si, mem_windows);
 

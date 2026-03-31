@@ -505,6 +505,37 @@ static void mv643xx_eth_update_pscr(struct net_device *dev,
 	}
 }
 
+static void mv643xx_eth_print_phy_status (struct net_device *dev) {
+	struct mv643xx_private *mp = netdev_priv(dev);
+	int port_num = mp->port_num;
+	unsigned int port_status;
+	unsigned int phy_reg_data;
+#if 0
+	unsigned int phy_id_low, phy_id_high, phy_id;
+                                                                                
+	eth_port_read_smi_reg(port_num, 2, &phy_id_low);
+	eth_port_read_smi_reg(port_num, 3, &phy_id_high);
+	phy_id = ((phy_id_high << 16) | phy_id_low) & 0xfffffff0;
+	printk("%s: PHY id 0x%x\n", dev->name, phy_id);
+#endif
+	/* Check Link status on phy */
+	eth_port_read_smi_reg(port_num, 1, &phy_reg_data);
+	if(!(phy_reg_data & 0x20)) {
+		printk (KERN_INFO
+			"%s: Ethernet port changed link status to DOWN\n",dev->name);
+	} else {
+		port_status = mv_read(MV643XX_ETH_PORT_STATUS_REG(port_num));
+		printk (KERN_INFO "%s: Ethernet status : Link up",dev->name);
+		printk (", %s",(port_status & 0x4) ? "Full Duplex" : "Half Duplex");
+		if (port_status & 0x10)
+			printk (", Speed 1 Gbps\n");
+		else
+			printk (", %s\n",(port_status & 0x20) ? "Speed 100 Mbps" :
+				"Speed 10 Mbps");
+    	}
+}
+
+
 /*
  * mv643xx_eth_int_handler
  *
@@ -553,6 +584,7 @@ static irqreturn_t mv643xx_eth_int_handler(int irq, void *dev_id)
 			netif_stop_queue(dev);
 			netif_carrier_off(dev);
 		}
+		mv643xx_eth_print_phy_status(dev);
 	}
 
 #ifdef MV643XX_NAPI

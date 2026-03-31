@@ -80,6 +80,11 @@
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/sysfs.h>
+#ifdef CONFIG_MVME7100
+#include <linux/interrupt.h>
+#include <platforms/86xx/mvme7100.h>
+#include <asm/io.h>
+#endif
 
 /*
  * Addresses to scan
@@ -97,7 +102,7 @@ static unsigned short normal_i2c[] = { 0x4c, 0x4d, I2C_CLIENT_END };
  * Insmod parameters
  */
 
-I2C_CLIENT_INSMOD_6(lm90, adm1032, lm99, lm86, max6657, adt7461);
+I2C_CLIENT_INSMOD_7(lm90, adm1032, lm99, lm86, max6657, max6649, adt7461);
 
 /*
  * The LM90 registers
@@ -221,6 +226,23 @@ struct lm90_data {
 	u8 alarms; /* bitvector */
 };
 
+#ifdef CONFIG_MVME7100 
+static struct tasklet_struct maxim6649_bh_task;
+#endif
+
+static struct i2c_client *new_client;
+
+#ifdef CONFIG_MVME7100
+
+#define MAXIM6649_INTERRUPT     73
+#define BOARD_TSTAT_MASK        MVME7100_TEMP_MASK
+#define BOARD_TSTAT_REG         MVME7100_INTERRUPT_REG_2
+
+static void __iomem *control_reg_mapped_addr;
+static int control_reg_mapped;
+
+#endif
+
 /*
  * Sysfs stuff
  */
@@ -338,6 +360,42 @@ static ssize_t show_alarm(struct device *dev, struct device_attribute
 	return sprintf(buf, "%d\n", (data->alarms >> bitnr) & 1);
 }
 
+#ifdef CONFIG_MVME7100 
+
+static ssize_t show_irq_enable(struct device *dev, struct device_attribute *attr, char *buf)
+{
+        u8      cr;
+
+        cr = readb(control_reg_mapped_addr);
+        return sprintf(buf, "%d\n", (!(cr & BOARD_TSTAT_MASK)));
+}
+
+static ssize_t set_irq_enable(struct device *dev, struct device_attribute *attr,                                 const char *buf, size_t count)
+{
+        ulong value;
+        u8  cr;
+        struct i2c_client *client = to_i2c_client(dev);
+	struct lm90_data *data = i2c_get_clientdata(client);
+
+	mutex_lock(&data->update_lock);
+        value = simple_strtoul(buf, NULL, 10);
+        cr = readb(control_reg_mapped_addr);
+        if (value == 1)  {
+                cr &= ~BOARD_TSTAT_MASK;
+        } else {
+
+                cr |= BOARD_TSTAT_MASK;
+        }
+        writeb(cr, control_reg_mapped_addr);
+	mutex_unlock(&data->update_lock);
+        return count;
+}
+
+static DEVICE_ATTR(irq_enable, S_IWUSR | S_IRUGO, show_irq_enable,
+	set_irq_enable);
+
+#endif
+
 static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO, show_temp8, NULL, 0);
 static SENSOR_DEVICE_ATTR(temp2_input, S_IRUGO, show_temp11, NULL, 0);
 static SENSOR_DEVICE_ATTR(temp1_min, S_IWUSR | S_IRUGO, show_temp8,
@@ -387,12 +445,78 @@ static struct attribute *lm90_attributes[] = {
 	&sensor_dev_attr_temp1_min_alarm.dev_attr.attr,
 	&sensor_dev_attr_temp1_max_alarm.dev_attr.attr,
 	&dev_attr_alarms.attr,
+#ifdef CONFIG_MVME7100
+	&dev_attr_irq_enable.attr,
+#endif
 	NULL
 };
 
 static const struct attribute_group lm90_group = {
 	.attrs = lm90_attributes,
 };
+
+
+static int lm90_read_reg(struct i2c_client* client, u8 reg, u8 *value);
+
+#ifdef CONFIG_MVME7100
+
+static void maxim6649_bh_handler(unsigned long data)
+{
+        struct lm90_data *lm_data;
+        struct i2c_client *client = (struct i2c_client *)data;
+
+        if (data != (unsigned long)new_client)
+                return;
+
+	lm_data = i2c_get_clientdata(client);
+
+//	lm_data = lm90_update_device(&client->dev);
+
+        printk(KERN_ERR "Maxim6649: the current sensor temperature is %d C\n", 
+		TEMP1_FROM_REG(lm_data->temp8[0]));
+        printk(KERN_ERR "Maxim6649: the current remote sensor temperature is %d C\n",
+		TEMP2_FROM_REG(lm_data->temp11[0]));
+
+        printk(KERN_ERR "Maxim6649: the sensor high temperature limit is set to %d C\n", 
+		TEMP1_FROM_REG(lm_data->temp8[2]));
+        printk(KERN_ERR "Maxim6649: the sensor low temperature limit is set to %d C\n", 
+		TEMP1_FROM_REG(lm_data->temp8[1]));
+        printk(KERN_ERR "Maxim6649: the sensor temperature critical limit is set to %d C\n", 
+		TEMP1_FROM_REG(lm_data->temp8[3]));
+        printk(KERN_ERR "Maxim6649: the remote sensor temperature high limit is set to %d C\n", 
+		TEMP2_FROM_REG(lm_data->temp11[2]));
+        printk(KERN_ERR "Maxim6649: the remote sensor temperature low limit is set to %d C\n", 
+		TEMP2_FROM_REG(lm_data->temp11[1]));
+        printk(KERN_ERR "Maxim6649: the remote sensor temperature critical limit is set to %d C\n", 
+		TEMP1_FROM_REG(lm_data->temp8[4]));
+
+        return;
+}
+
+
+static irqreturn_t maxim6649_int_handler(int irq, void *dev_id)
+{
+        u16 value;
+        struct i2c_client *client = (struct i2c_client *)dev_id;
+        struct lm90_data *data;
+
+        if (dev_id != (void *)new_client)
+                return IRQ_NONE;
+
+        printk(KERN_ERR "Maxim6649: Interrupt!\n");
+        printk(KERN_ERR "Maxim6649: Masking interrupt.\n");
+
+	data = i2c_get_clientdata(client);
+        value = readb(control_reg_mapped_addr);
+        value |= BOARD_TSTAT_MASK;
+        writeb(value, control_reg_mapped_addr);
+
+        tasklet_schedule(&maxim6649_bh_task);
+
+        return IRQ_HANDLED;
+}
+
+#endif
 
 /* pec used for ADM1032 only */
 static ssize_t show_pec(struct device *dev, struct device_attribute *dummy,
@@ -475,7 +599,6 @@ static int lm90_attach_adapter(struct i2c_adapter *adapter)
  */
 static int lm90_detect(struct i2c_adapter *adapter, int address, int kind)
 {
-	struct i2c_client *new_client;
 	struct lm90_data *data;
 	int err = 0;
 	const char *name = "";
@@ -574,6 +697,11 @@ static int lm90_detect(struct i2c_adapter *adapter, int address, int kind)
 			 && (reg_config1 & 0x1F) == (man_id & 0x0F)
 			 && reg_convrate <= 0x09) {
 			 	kind = max6657;
+			} else 
+			if (chip_id == 0x59 /* Maxim6649 */
+			 && (reg_config1 & 0x1F) == 0x00 /* check compat mode */
+			 && reg_convrate <= 0x0A) {
+				kind = max6649;
 			}
 		}
 
@@ -599,6 +727,8 @@ static int lm90_detect(struct i2c_adapter *adapter, int address, int kind)
 		name = "lm86";
 	} else if (kind == max6657) {
 		name = "max6657";
+	} else if (kind == max6649) {
+		name = "max6649";
 	} else if (kind == adt7461) {
 		name = "adt7461";
 	}
@@ -660,6 +790,50 @@ static void lm90_init_client(struct i2c_client *client)
 	if (config & 0x40)
 		i2c_smbus_write_byte_data(client, LM90_REG_W_CONFIG1,
 					  config & 0xBF); /* run */
+
+#ifdef CONFIG_MVME7100 
+	{
+		struct lm90_data *data = i2c_get_clientdata(client);
+		int result;
+		u8  value;
+		long val;
+
+		tasklet_init(&maxim6649_bh_task, &maxim6649_bh_handler,
+			(unsigned long) new_client);
+
+        	control_reg_mapped_addr = ioremap(BOARD_TSTAT_REG, 1);
+        	control_reg_mapped = 1;
+
+		data = lm90_update_device(&client->dev);
+               	printk(KERN_INFO "maxim6649: Sensor Temperature is %2d C; CPU Core Temperature is %2d C\n", 
+			data->temp8[0],
+			TEMP2_FROM_REG(data->temp11[0]) / 1000);
+
+		/* Set remote critical */
+		val = 120000;	
+		data->temp8[4] = TEMP1_TO_REG(val);
+		i2c_smbus_write_byte_data(client, LM90_REG_W_REMOTE_CRIT, data->temp8[4]);
+
+		/* Set remote high */
+		val = 105000;	
+		data->temp11[2] = TEMP2_TO_REG(val);
+		i2c_smbus_write_byte_data(client, LM90_REG_W_REMOTE_HIGHH, data->temp11[2] >> 8);
+		i2c_smbus_write_byte_data(client, LM90_REG_W_REMOTE_HIGHL, data->temp11[2] & 0xff);
+
+        	result = request_irq(MAXIM6649_INTERRUPT, maxim6649_int_handler,
+                                IRQF_DISABLED, "maxim6649", new_client);
+        	if (result) {
+                	printk(KERN_ERR "maxim6649: Cannot get irq %d\n", MAXIM6649_INTERRUPT);
+                	return;
+        	}
+
+	        /* Unmask MAXIM6649 temperature sensor thermostat output */
+		value = readb(control_reg_mapped_addr);
+		value &= ~BOARD_TSTAT_MASK;
+		writeb(value, control_reg_mapped_addr);
+	}
+#endif
+
 }
 
 static int lm90_detach_client(struct i2c_client *client)
@@ -670,6 +844,23 @@ static int lm90_detach_client(struct i2c_client *client)
 	hwmon_device_unregister(data->class_dev);
 	sysfs_remove_group(&client->dev.kobj, &lm90_group);
 	device_remove_file(&client->dev, &dev_attr_pec);
+
+#ifdef CONFIG_MVME7100 
+	{
+		u8 value;
+
+        	if (control_reg_mapped) {
+			/* Mask temperature sensor interrupt */
+			value = readb(control_reg_mapped_addr);
+			value |= BOARD_TSTAT_MASK;
+			writeb(value, control_reg_mapped_addr);
+			iounmap(control_reg_mapped_addr);
+			control_reg_mapped = 0;
+		}
+		tasklet_kill(&maxim6649_bh_task);
+		free_irq(MAXIM6649_INTERRUPT, client);
+	}
+#endif
 
 	if ((err = i2c_detach_client(client)))
 		return err;

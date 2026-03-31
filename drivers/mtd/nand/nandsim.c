@@ -402,7 +402,7 @@ static int init_nandsim(struct mtd_info *mtd)
 
 	/* Initialize the NAND flash parameters */
 	ns->busw = chip->options & NAND_BUSWIDTH_16 ? 16 : 8;
-	ns->geom.totsz    = mtd->size;
+	ns->geom.totsz    = device_size(mtd);
 	ns->geom.pgsz     = mtd->writesize;
 	ns->geom.oobsz    = mtd->oobsize;
 	ns->geom.secsz    = mtd->erasesize;

@@ -95,9 +95,11 @@ mpc85xx_early_serial_map(void)
 	gen550_init(0, &serial_req);
 #endif
 
+#ifndef CONFIG_MVME3100
+
 	pdata[1].uartclk = binfo->bi_busfreq;
 	pdata[1].mapbase += binfo->bi_immr_base;
-	pdata[1].membase = ioremap(pdata[1].mapbase, MPC85xx_UART0_SIZE);
+	pdata[1].membase = ioremap(pdata[1].mapbase, MPC85xx_UART1_SIZE);
 
 #if defined(CONFIG_SERIAL_TEXT_DEBUG) || defined(CONFIG_KGDB)
 	/* Assume gen550_init() doesn't modify serial_req */
@@ -106,6 +108,9 @@ mpc85xx_early_serial_map(void)
 
 	gen550_init(1, &serial_req);
 #endif
+
+#endif
+
 }
 #endif
 

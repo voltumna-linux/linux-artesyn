@@ -430,6 +430,9 @@ static void __devinit init_hwif_via82cxxx(ide_hwif_t *hwif)
 	struct via82cxxx_dev *vdev = pci_get_drvdata(hwif->pci_dev);
 	int i;
 
+        if ((!hwif->irq) || (hwif->irq == 14) || (hwif->irq == 15))
+                hwif->irq = hwif->channel ? 15 : 14;
+
 	hwif->autodma = 0;
 
 	hwif->tuneproc = &via82cxxx_tune_drive;

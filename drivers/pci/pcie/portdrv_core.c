@@ -268,7 +268,7 @@ int pcie_port_device_probe(struct pci_dev *dev)
 	pci_read_config_word(dev, pos + PCIE_CAPABILITIES_REG, &reg);
 	type = (reg >> 4) & PORT_TYPE_MASK;
 	if (	type == PCIE_RC_PORT || type == PCIE_SW_UPSTREAM_PORT ||
-		type == PCIE_SW_DOWNSTREAM_PORT )
+		type == PCIE_SW_DOWNSTREAM_PORT || type == PCIE_ANY_PORT )
 		return 0;
 
 	return -ENODEV;

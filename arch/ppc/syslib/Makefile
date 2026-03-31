@@ -7,6 +7,7 @@ CFLAGS_btext.o          += -fPIC
 
 wdt-mpc8xx-$(CONFIG_8xx_WDT)	+= m8xx_wdt.o
 
+obj-$(CONFIG_PPC_INDIRECT_PCI)	+= indirect_pci.o
 obj-$(CONFIG_PPCBUG_NVRAM)	+= prep_nvram.o
 obj-$(CONFIG_PPC_OCP)		+= ocp.o
 obj-$(CONFIG_IBM_OCP)		+= ibm_ocp.o
@@ -41,6 +42,7 @@ obj-$(CONFIG_PCI_QSPAN)		+= qspan_pci.o
 obj-$(CONFIG_PPC_PREP)		+= open_pic.o todc_time.o
 obj-$(CONFIG_BAMBOO)		+= pci_auto.o todc_time.o
 obj-$(CONFIG_CPCI690)		+= todc_time.o pci_auto.o
+obj-$(CONFIG_CPCI695)		+= mv64x60.o mv64360_pic.o todc_time.o pci_auto.o 
 obj-$(CONFIG_EBONY)		+= pci_auto.o todc_time.o
 obj-$(CONFIG_EV64260)		+= todc_time.o pci_auto.o
 obj-$(CONFIG_EV64360)		+= todc_time.o
@@ -56,6 +58,17 @@ obj-$(CONFIG_MV64360)		+= mv64360_pic.o
 obj-$(CONFIG_MV64X60)		+= mv64x60.o mv64x60_win.o
 obj-$(CONFIG_MVME5100)		+= open_pic.o todc_time.o \
 					pci_auto.o hawk_common.o
+obj-$(CONFIG_MVME5100_IPMC761_PRESENT)  += i8259.o
+obj-$(CONFIG_MVME5500)          += mv64x60.o gt64260_pic.o \
+                                        pci_auto.o todc_time.o \
+                                        i8259.o
+obj-$(CONFIG_MVME6100)          += mv64x60.o mv64360_pic.o \
+                                        pci_auto.o todc_time.o \
+                                        i8259.o
+obj-$(CONFIG_MCP905)            += mv64x60.o mv64360_pic.o \
+                                        pci_auto.o todc_time.o 
+obj-$(CONFIG_MCP805)            +=  open_pic3.o pci_auto.o todc_time.o 
+obj-$(CONFIG_MCP820)            +=  open_pic3.o pci_auto.o todc_time.o i8259.o
 obj-$(CONFIG_OCOTEA)		+= pci_auto.o todc_time.o
 obj-$(CONFIG_PAL4)		+= cpc700_pic.o
 obj-$(CONFIG_POWERPMC250)	+= pci_auto.o

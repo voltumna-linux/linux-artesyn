@@ -65,7 +65,6 @@ smp_86xx_kick_cpu(int nr)
 	pr_debug("smp_86xx_kick_cpu: kick CPU #%d\n", nr);
 
 	local_irq_save(flags);
-	local_irq_disable();
 
 	/* Save reset vector */
 	save_vector = *vector;
@@ -90,17 +89,55 @@ smp_86xx_kick_cpu(int nr)
 	pr_debug("wait CPU #%d for %d msecs.\n", nr, n);
 }
 
+/* Copy L2 cache settings from CPU0 to CPU1 */
+volatile static long int l2_cache;
 
-static void __init
-smp_86xx_setup_cpu(int cpu_nr)
+static void __devinit smp_86xx_init_caches(int cpu)
 {
+	if (cpu == 0) {
+		l2_cache = _get_L2CR();
+		printk("CPUO: L2CR is %lx\n", l2_cache);
+	} else {
+		printk("CPU%d: L2CR was %lx\n", cpu, _get_L2CR());
+		_set_L2CR(0);
+		_set_L2CR(l2_cache);
+		printk("CPU%d: L2CR set to %lx\n", cpu, l2_cache);
+	}
+}
+
+static int __init smp_86xx_probe(void)
+{
+	struct device_node *cpus;
+	int ncpus = 0;
+
+        /* Count CPUs in the device-tree */
+        for (cpus = NULL; (cpus = of_find_node_by_type(cpus, "cpu")) != NULL;)
+                ++ncpus;
+
+        printk(KERN_INFO "MPC86xx SMP probe found %d cpus\n", ncpus);
+
+        /* Nothing more to do if less than 2 of them */
+        if (ncpus <= 1)
+                return 1;
+
+	/* Collect L2CR value from CPU 0 */
+	smp_86xx_init_caches(0);
+
+	return smp_mpic_probe();
+}
+
+static void __init smp_86xx_setup_cpu(int cpu_nr)
+{
+	if (cpu_nr != 0)
+		smp_86xx_init_caches(cpu_nr);
+
 	mpic_setup_this_cpu();
 }
 
 
 struct smp_ops_t smp_86xx_ops = {
 	.message_pass = smp_mpic_message_pass,
-	.probe = smp_mpic_probe,
+	.probe = smp_86xx_probe,
 	.kick_cpu = smp_86xx_kick_cpu,
 	.setup_cpu = smp_86xx_setup_cpu,
 	.take_timebase = smp_generic_take_timebase,

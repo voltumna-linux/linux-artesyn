@@ -32,6 +32,8 @@ MODULE_LICENSE("GPL");
 /* global data */
 static const char device_name[] = "pcieport-driver";
 
+extern int pci_cleanup_aer_correct_error_status(struct pci_dev *dev);
+
 static int pcie_portdrv_save_config(struct pci_dev *dev)
 {
 	return pci_save_state(dev);
@@ -93,7 +95,7 @@ static int __devinit pcie_portdrv_probe (struct pci_dev *dev,
         if (!dev->irq && dev->pin) {
 		printk(KERN_WARNING 
 		"%s->Dev[%04x:%04x] has invalid IRQ. Check vendor BIOS\n", 
-		__FUNCTION__, dev->device, dev->vendor);
+		__FUNCTION__, dev->vendor, dev->device);
 	}
 	if (pcie_port_device_register(dev)) {
 		pci_disable_device(dev);
@@ -102,7 +104,12 @@ static int __devinit pcie_portdrv_probe (struct pci_dev *dev,
 
 	pcie_portdrv_save_config(dev);
 
+	dev->error_state = pci_channel_io_normal;
+	pci_cleanup_aer_uncorrect_error_status(dev);
+	pci_cleanup_aer_correct_error_status(dev);
 	pci_enable_pcie_error_reporting(dev);
+	pci_cleanup_aer_uncorrect_error_status(dev);
+	pci_cleanup_aer_correct_error_status(dev);
 
 	return 0;
 }
@@ -262,10 +269,11 @@ static void pcie_portdrv_err_resume(struct pci_dev *dev)
 /*
  * LINUX Device Driver Model
  */
-static const struct pci_device_id port_pci_ids[] = { {
+static const struct pci_device_id port_pci_ids[] = { 
 	/* handle any PCI-Express port */
-	PCI_DEVICE_CLASS(((PCI_CLASS_BRIDGE_PCI << 8) | 0x00), ~0),
-	}, { /* end: all zeroes */ }
+	{ PCI_DEVICE(0x1957, 0x7011),},
+	{ PCI_DEVICE_CLASS(((PCI_CLASS_BRIDGE_PCI << 8) | 0x00), ~0), },
+	{ /* end: all zeroes */ }
 };
 MODULE_DEVICE_TABLE(pci, port_pci_ids);
 
@@ -278,7 +286,7 @@ static struct pci_error_handlers pcie_portdrv_err_handler = {
 
 static struct pci_driver pcie_portdrv = {
 	.name		= (char *)device_name,
-	.id_table	= &port_pci_ids[0],
+	.id_table	= port_pci_ids,
 
 	.probe		= pcie_portdrv_probe,
 	.remove		= pcie_portdrv_remove,

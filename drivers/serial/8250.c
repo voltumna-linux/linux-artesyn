@@ -2248,6 +2248,34 @@ static void serial8250_console_putchar(struct uart_port *port, int ch)
 }
 
 /*
+ *      Receive character from the serial port
+ */
+int serial_console_receive_char(void)
+{
+	struct uart_8250_port *up = &serial8250_ports[0];
+        int ier, c;
+
+
+        /*
+         *      First save the IER then disable the interrupts so
+         *      that the real driver for the port does not get the
+         *      character.
+         */
+        ier = serial_in(up, UART_IER);
+        serial_out(up, UART_IER, 0x00);
+
+        while ((serial_in(up, UART_LSR) & UART_LSR_DR) == 0);
+        c = serial_in(up, UART_RX);
+        /*
+         *      Restore the interrupts
+         */
+        serial_out(up, UART_IER, ier);
+
+        return c;
+}
+EXPORT_SYMBOL(serial_console_receive_char);
+
+/*
  *	Print a string to the serial port trying not to disturb
  *	any possible real use of the port...
  *

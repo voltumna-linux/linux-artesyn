@@ -1,32 +1,49 @@
-menu "Platform Support"
-	depends on PPC_86xx
-
 choice
 	prompt "Machine Type"
-	default MPC8641_HPCN
+	depends on PPC_86xx
+	default MVME7100
+
+config MVME7100
+	bool "Motorola ECC MVME7100"
+	select PPC_I8259
+	select PPC_PCI_QUIRKS
+	help
+	  This option enables support for the Motorola ECC MVME7100 board.
 
 config MPC8641_HPCN
 	bool "Freescale MPC8641 HPCN"
 	select PPC_I8259
+	select PPC_PCI_QUIRKS
 	help
 	  This option enables support for the MPC8641 HPCN board.
 
 endchoice
 
-
 config MPC8641
 	bool
-	select PPC_INDIRECT_PCI
+        select PPC_INDIRECT_PCI_BE if PCI
+	select FSL_PCI if PCI
 	select PPC_UDBG_16550
-	default y if MPC8641_HPCN
+	select MPIC
+	default y if MPC8641_HPCN || MVME7100
 
-config MPIC
-	bool
-	default y
+config MVME7100_ENABLE_DDR_ERRORS
+        bool "Enable DDR Error Reporting"
+        depends on MVME7100
+        default y
 
-config PPC_INDIRECT_PCI_BE
-	bool
-	depends on PPC_86xx
-	default y
+config MVME7100_ENABLE_L2_ERRORS
+        bool "Enable L2 Error Reporting"
+        depends on MVME7100
+        default y
 
-endmenu
+config MVME7100_ENABLE_PCI_ERRORS
+        bool "Enable PCI Error Reporting"
+        depends on MVME7100
+        default y
+
+config MVME7100_TICK_TIMERS
+        bool "Enable support for the Tick Timers on the MVME7100"
+        depends on MVME7100
+        default y
+

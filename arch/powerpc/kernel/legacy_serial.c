@@ -142,6 +142,33 @@ static int __init add_legacy_soc_port(struct device_node *np,
 		return add_legacy_port(np, -1, UPIO_MEM, addr, addr, NO_IRQ, flags, 0);
 }
 
+static int __init add_legacy_board_port(struct device_node *np)
+{
+	u64 addr;
+	const u32 *addrp;
+	upf_t flags = UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ;
+
+	/* We only support ports that have a clock frequency properly
+	 * encoded in the device-tree.
+	 */
+	if (get_property(np, "clock-frequency", NULL) == NULL)
+		return -1;
+
+	/* Get the address */
+	addrp = of_get_address(np, 0, NULL, NULL);
+	if (addrp == NULL)
+		return -1;
+
+	addr = of_translate_address(np, addrp);
+	if (addr == OF_BAD_ADDR)
+		return -1;
+
+	/* Add port, irq will be dealt with later. We passed a translated
+	 * IO port value. It will be fixed up later along with the irq
+	 */
+	return add_legacy_port(np, -1, UPIO_MEM, addr, addr, NO_IRQ, flags, 0);
+}
+
 static int __init add_legacy_isa_port(struct device_node *np,
 				      struct device_node *isa_brg)
 {
@@ -283,6 +310,7 @@ static void __init setup_legacy_serial_console(int console)
  * console to be initialized, that list is also used later to provide 8250 with
  * the machine non-PCI ports and to properly pick the default console port
  */
+
 void __init find_legacy_serial_ports(void)
 {
 	struct device_node *np, *stdout = NULL;
@@ -308,7 +336,8 @@ void __init find_legacy_serial_ports(void)
 			index = add_legacy_soc_port(np, np);
 			if (index >= 0 && np == stdout)
 				legacy_serial_console = index;
-		}
+		} else 
+			index = add_legacy_board_port(np);
 		of_node_put(soc);
 	}
 
@@ -471,6 +500,8 @@ static int __init serial_dev_init(void)
 			fixup_port_pio(i, np, port);
 		if ((port->iotype == UPIO_MEM) || (port->iotype == UPIO_TSI))
 			fixup_port_mmio(i, np, port);
+		udbg_init_uart(port->membase, legacy_serial_infos[i].speed, 
+				legacy_serial_infos[i].clock);
 	}
 
 	DBG("Registering platform serial ports\n");

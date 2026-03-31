@@ -145,12 +145,39 @@ static struct plat_serial8250_port serial_platform_data[] = {
 		.iotype		= UPIO_MEM,
 		.flags		= UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ,
 	},
+#ifndef CONFIG_MVME3100
 	[1] = {
 		.mapbase	= 0x4600,
 		.irq		= MPC85xx_IRQ_DUART,
 		.iotype		= UPIO_MEM,
 		.flags		= UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ,
 	},
+#else
+	[1] = {
+		.mapbase	= 0xE2011000U,
+		.irq		= MPC85xx_IRQ_EXT3,
+		.iotype		= UPIO_MEM,
+		.flags		= UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ,
+	},
+	[2] = {
+		.mapbase	= 0xE2012000U,
+		.irq		= MPC85xx_IRQ_EXT3,
+		.iotype		= UPIO_MEM,
+		.flags		= UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ,
+	},
+	[3] = {
+		.mapbase	= 0xE2013000U,
+		.irq		= MPC85xx_IRQ_EXT3,
+		.iotype		= UPIO_MEM,
+		.flags		= UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ,
+	},
+	[4] = {
+		.mapbase	= 0xE2014000U,
+		.irq		= MPC85xx_IRQ_EXT3,
+		.iotype		= UPIO_MEM,
+		.flags		= UPF_BOOT_AUTOCONF | UPF_SKIP_TEST | UPF_SHARE_IRQ,
+	},
+#endif
 	{ },
 };
 

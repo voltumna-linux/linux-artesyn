@@ -10,6 +10,9 @@
 #include <linux/pci.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
+#ifdef CONFIG_PCI_SERVICES
+#include <linux/pci_res.h>
+#endif
 #include <linux/seq_file.h>
 #include <linux/smp_lock.h>
 
@@ -302,6 +305,93 @@ static struct file_operations proc_bus_pci_operations = {
 #endif /* HAVE_PCI_MMAP */
 };
 
+#ifdef CONFIG_PCI_SERVICES
+static int proc_node_pci_open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static int
+proc_node_pci_ioctl(struct inode *inode, struct file *file,
+                     unsigned int cmd, unsigned long arg)
+{
+	void __user *uarg = (char __user *)arg;
+        unsigned int cnt;
+        int ret_code;
+        struct pci_dev *pdev;
+        struct pci_node node_info;
+                                                                                
+        if (capable(CAP_SYS_ADMIN) == 0)
+                return (-EPERM);
+                                                                                
+        cnt = sizeof (struct pci_node);
+
+        if (!access_ok(VERIFY_READ, uarg, cnt))
+                return (-EFAULT);
+                                                                                
+	if (__copy_from_user((char *)&node_info, uarg, cnt)) {
+		return -EFAULT;
+	}
+
+        printk (KERN_INFO "PCI proc: cmd = %d, node bus = %d, devfn = 0x%02x\n",                node_info.cmd, node_info.number, node_info.devfn);
+                                                                                
+        switch (node_info.cmd) {
+        case PCI_NODE_NOP:
+        {
+                if ((pdev = pci_find_slot(node_info.number, node_info.devfn))
+                        == NULL)
+                        return (-ENOENT);
+                break;
+        }
+                                                                                
+        case PCI_NODE_ADD:
+        {
+                if ((ret_code = pci_add_node(node_info.number, node_info.devfn)) != PCI_OK)
+                        return (ret_code);
+                                                                                
+                break;
+        }
+                                                                                
+        case PCI_NODE_DEL:
+        {
+                if ((ret_code = pci_del_node(node_info.number, node_info.devfn)) != PCI_OK)
+                        return (ret_code);
+                                                                                
+                break;
+        }
+        case PCI_NODE_SWAP:
+        {
+                if ((ret_code = pci_swap_node(node_info.number, node_info.devfn,                            node_info.secdevfn)) != PCI_OK)
+                        return (ret_code);
+                                                                                
+                break;
+        }
+                                                                                
+        default:
+        {
+                return (-EINVAL);
+        }
+        }
+                                                                                
+        return (0);
+}
+                                                                                
+static int proc_node_pci_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static struct file_operations proc_node_pci_operations = {
+	.open		= proc_node_pci_open,
+	.ioctl		= proc_node_pci_ioctl,
+	.release	= proc_node_pci_release,
+};
+                                                                                
+static struct proc_dir_entry *proc_node_pci;
+                                                                                
+#endif /* CONFIG_PCI_SERVICES */
+                                                                                
+
 /* iterator */
 static void *pci_seq_start(struct seq_file *m, loff_t *pos)
 {
@@ -379,6 +469,10 @@ static struct seq_operations proc_bus_pci_devices_op = {
 
 static struct proc_dir_entry *proc_bus_pci_dir;
 
+#ifdef CONFIG_PCI_SERVICES
+static int busnum_fixup;
+#endif
+
 int pci_proc_attach_device(struct pci_dev *dev)
 {
 	struct pci_bus *bus = dev->bus;
@@ -389,12 +483,25 @@ int pci_proc_attach_device(struct pci_dev *dev)
 		return -EACCES;
 
 	if (!bus->procdir) {
+#ifdef CONFIG_PCI_SERVICES
+                if (bus->number == 0) {
+                        if (busnum_fixup == 0) {
+                                sprintf(name, "%02x", bus->number);
+                        } else {
+                                sprintf(name, "%03x", busnum_fixup);
+                        }
+                        busnum_fixup += 0x100;
+                } else {
+                        sprintf(name, "%02x", bus->number);
+                }
+#else
 		if (pci_proc_domain(bus)) {
 			sprintf(name, "%04x:%02x", pci_domain_nr(bus),
 					bus->number);
 		} else {
 			sprintf(name, "%02x", bus->number);
 		}
+#endif
 		bus->procdir = proc_mkdir(name, proc_bus_pci_dir);
 		if (!bus->procdir)
 			return -ENOMEM;
@@ -408,7 +515,6 @@ int pci_proc_attach_device(struct pci_dev *dev)
 	e->data = dev;
 	e->size = dev->cfg_size;
 	dev->procent = e;
-
 	return 0;
 }
 
@@ -424,6 +530,34 @@ int pci_proc_detach_device(struct pci_dev *dev)
 	}
 	return 0;
 }
+
+#ifdef CONFIG_PCI_SERVICES
+int pci_proc_attach_bus(struct pci_bus* bus)
+{
+        struct proc_dir_entry *de = bus->procdir;
+
+        if (!proc_initialized)
+                return -EACCES;
+
+        if (!de) {
+                char name[16];
+                if (bus->number == 0) {
+                        if (busnum_fixup == 0) {
+                                sprintf(name, "%02x", bus->number);
+                        } else {
+                                sprintf(name, "%03x", busnum_fixup);
+                        }
+                        busnum_fixup += 0x100;
+                } else {
+                        sprintf(name, "%02x", bus->number);
+                }
+                de = bus->procdir = proc_mkdir(name, proc_bus_pci_dir);
+                if (!de)
+                        return -ENOMEM;
+        }
+        return 0;
+}
+#endif
 
 #if 0
 int pci_proc_attach_bus(struct pci_bus* bus)
@@ -456,6 +590,7 @@ static int proc_bus_pci_dev_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &proc_bus_pci_devices_op);
 }
+
 static struct file_operations proc_bus_pci_dev_operations = {
 	.open		= proc_bus_pci_dev_open,
 	.read		= seq_read,
@@ -467,20 +602,31 @@ static int __init pci_proc_init(void)
 {
 	struct proc_dir_entry *entry;
 	struct pci_dev *dev = NULL;
+
 	proc_bus_pci_dir = proc_mkdir("pci", proc_bus);
 	entry = create_proc_entry("devices", 0, proc_bus_pci_dir);
 	if (entry)
 		entry->proc_fops = &proc_bus_pci_dev_operations;
 	proc_initialized = 1;
+
 	while ((dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
 		pci_proc_attach_device(dev);
 	}
+#ifdef CONFIG_PCI_SERVICES
+	proc_node_pci =
+		create_proc_entry ("node", S_IFREG | S_IRUGO | S_IWUSR,
+				proc_bus_pci_dir);
+	if (!proc_node_pci)
+		return -ENOMEM;
+	proc_node_pci->proc_fops = &proc_node_pci_operations;
+	proc_node_pci->size = sizeof (struct pci_node);
+#endif
 	return 0;
 }
 
 __initcall(pci_proc_init);
 
-#ifdef CONFIG_HOTPLUG
+#if defined(CONFIG_HOTPLUG) || defined(CONFIG_PCI_SERVICES)
 EXPORT_SYMBOL(pci_proc_attach_device);
 EXPORT_SYMBOL(pci_proc_detach_bus);
 #endif

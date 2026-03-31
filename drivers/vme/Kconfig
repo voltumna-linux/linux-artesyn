@@ -1,0 +1,69 @@
+#
+# VME bridge device configuration
+#
+
+menu "VME Bridge devices"
+	depends on (MVME5100 || MVME5500 || MVME6100 || MVME3100 || MVME7100)
+
+config VME_BRIDGE
+	tristate "VME Bridge Support"
+	depends on (MVME5100 || MVME5500 || MVME6100 || MVME3100 || MVME7100)
+	help
+	  If you say Y here you get support for the CA91C042 (Universe I/II)
+          and Tundra TSI148 VME bridge chips. If you have "udev" correctly 
+          configured in your root file system the required device nodes will 
+	  get created automatically. Otherwise, create the following character 
+          special files with major number 221 using mknod ("man mknod"). 
+          For details, refer to the VME Driver User's Guide.
+
+		mknod /dev/vme_m0  c 221 0
+		mknod /dev/vme_m1  c 221 1
+		mknod /dev/vme_m2  c 221 2
+		mknod /dev/vme_m3  c 221 3
+		mknod /dev/vme_m4  c 221 4
+		mknod /dev/vme_m5  c 221 5
+		mknod /dev/vme_m6  c 221 6
+		mknod /dev/vme_m7  c 221 7
+		mknod /dev/vme_s0  c 221 8
+		mknod /dev/vme_s1  c 221 9
+		mknod /dev/vme_s2  c 221 10
+		mknod /dev/vme_s3  c 221 11
+		mknod /dev/vme_s4  c 221 12
+		mknod /dev/vme_s5  c 221 13
+		mknod /dev/vme_s6  c 221 14
+		mknod /dev/vme_s7  c 221 15
+		mknod /dev/vme_dma0 c 221 16
+		mknod /dev/vme_dma1 c 221 17
+		mknod /dev/vme_ctl  c 221 32
+		mknod /dev/vme_regs c 221 33
+		mknod /dev/vme_rmw0 c 221 34
+		mknod /dev/vme_lm0  c 221 35
+
+	  If unsure, say N.
+
+config VME_BRIDGE_BOOTMEM
+	bool "VME Bridge bootmem"
+	depends on VME_BRIDGE
+	default n
+	help
+	  If you say Y here, the VME bridge driver will get memory for 
+	  inbound window 7 using the alloc_bootmem* API instead of the 
+	  standard DMA API. You want to say Y here if you want 
+	  a huge window opened up where you would run into a -ENOMEM error 
+          if you tried to get this memory dynamically. Memory for other 
+          inbound windows will still get dynamically allocated, when 
+          requested, using the DMA API.
+
+config VME_BRIDGE_BOOTMEM_SIZE
+	int "VME Bridge bootmem size"
+	depends on VME_BRIDGE_BOOTMEM
+	range 8 512
+	default "8"
+	help
+	  The amount of boot memory, in megabytes, to be permanently 
+          allocated for inbound window 7. While this parameter allows 
+          you to ask for upto 512M, the amount of memory that will be 
+          allocated is capped at half the total physical memory or 
+          the maximum that the alloc_bootmem() call makes available.
+
+endmenu

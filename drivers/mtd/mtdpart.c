@@ -52,10 +52,10 @@ static int part_read (struct mtd_info *mtd, loff_t from, size_t len,
 	struct mtd_part *part = PART(mtd);
 	int res;
 
-	if (from >= mtd->size)
+	if (from >= device_size(mtd))
 		len = 0;
-	else if (from + len > mtd->size)
-		len = mtd->size - from;
+	else if (from + len > device_size(mtd))
+		len = device_size(mtd) - from;
 	res = part->master->read (part->master, from + part->offset,
 				   len, retlen, buf);
 	if (unlikely(res)) {
@@ -71,10 +71,10 @@ static int part_point (struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char **buf)
 {
 	struct mtd_part *part = PART(mtd);
-	if (from >= mtd->size)
+	if (from >= device_size(mtd))
 		len = 0;
-	else if (from + len > mtd->size)
-		len = mtd->size - from;
+	else if (from + len > device_size(mtd))
+		len = device_size(mtd) - from;
 	return part->master->point (part->master, from + part->offset,
 				    len, retlen, buf);
 }
@@ -92,9 +92,9 @@ static int part_read_oob(struct mtd_info *mtd, loff_t from,
 	struct mtd_part *part = PART(mtd);
 	int res;
 
-	if (from >= mtd->size)
+	if (from >= device_size(mtd))
 		return -EINVAL;
-	if (ops->datbuf && from + ops->len > mtd->size)
+	if (ops->datbuf && from + ops->len > device_size(mtd))
 		return -EINVAL;
 	res = part->master->read_oob(part->master, from + part->offset, ops);
 
@@ -143,10 +143,10 @@ static int part_write (struct mtd_info *mtd, loff_t to, size_t len,
 	struct mtd_part *part = PART(mtd);
 	if (!(mtd->flags & MTD_WRITEABLE))
 		return -EROFS;
-	if (to >= mtd->size)
+	if (to >= device_size(mtd))
 		len = 0;
-	else if (to + len > mtd->size)
-		len = mtd->size - to;
+	else if (to + len > device_size(mtd))
+		len = device_size(mtd) - to;
 	return part->master->write (part->master, to + part->offset,
 				    len, retlen, buf);
 }
@@ -159,9 +159,9 @@ static int part_write_oob(struct mtd_info *mtd, loff_t to,
 	if (!(mtd->flags & MTD_WRITEABLE))
 		return -EROFS;
 
-	if (to >= mtd->size)
+	if (to >= device_size(mtd))
 		return -EINVAL;
-	if (ops->datbuf && to + ops->len > mtd->size)
+	if (ops->datbuf && to + ops->len > device_size(mtd))
 		return -EINVAL;
 	return part->master->write_oob(part->master, to + part->offset, ops);
 }
@@ -196,7 +196,7 @@ static int part_erase (struct mtd_info *mtd, struct erase_info *instr)
 	int ret;
 	if (!(mtd->flags & MTD_WRITEABLE))
 		return -EROFS;
-	if (instr->addr >= mtd->size)
+	if (instr->addr >= device_size(mtd))
 		return -EINVAL;
 	instr->addr += part->offset;
 	ret = part->master->erase(part->master, instr);
@@ -217,18 +217,18 @@ void mtd_erase_callback(struct erase_info *instr)
 }
 EXPORT_SYMBOL_GPL(mtd_erase_callback);
 
-static int part_lock (struct mtd_info *mtd, loff_t ofs, size_t len)
+static int part_lock (struct mtd_info *mtd, loff_t ofs, u_int64_t len)
 {
 	struct mtd_part *part = PART(mtd);
-	if ((len + ofs) > mtd->size)
+	if ((len + ofs) > device_size(mtd))
 		return -EINVAL;
 	return part->master->lock(part->master, ofs + part->offset, len);
 }
 
-static int part_unlock (struct mtd_info *mtd, loff_t ofs, size_t len)
+static int part_unlock (struct mtd_info *mtd, loff_t ofs, u_int64_t len)
 {
 	struct mtd_part *part = PART(mtd);
-	if ((len + ofs) > mtd->size)
+	if ((len + ofs) > device_size(mtd))
 		return -EINVAL;
 	return part->master->unlock(part->master, ofs + part->offset, len);
 }
@@ -254,7 +254,7 @@ static void part_resume(struct mtd_info *mtd)
 static int part_block_isbad (struct mtd_info *mtd, loff_t ofs)
 {
 	struct mtd_part *part = PART(mtd);
-	if (ofs >= mtd->size)
+	if (ofs >= device_size(mtd))
 		return -EINVAL;
 	ofs += part->offset;
 	return part->master->block_isbad(part->master, ofs);
@@ -267,7 +267,7 @@ static int part_block_markbad (struct mtd_info *mtd, loff_t ofs)
 
 	if (!(mtd->flags & MTD_WRITEABLE))
 		return -EROFS;
-	if (ofs >= mtd->size)
+	if (ofs >= device_size(mtd))
 		return -EINVAL;
 	ofs += part->offset;
 	res = part->master->block_markbad(part->master, ofs);

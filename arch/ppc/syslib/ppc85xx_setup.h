@@ -40,15 +40,23 @@ extern void mpc85xx_setup_hose(void) __init;
 #define PCIX_STATUS	0x64
 
 /* Serial Config */
+#define MPC85XX_0_SERIAL                (CCSRBAR + 0x4500)
+#define MPC85XX_1_SERIAL                (CCSRBAR + 0x4600)
+
 #ifdef CONFIG_SERIAL_MANY_PORTS
 #define RS_TABLE_SIZE  64
 #else
+#ifndef CONFIG_MVME3100
 #define RS_TABLE_SIZE  2
+#else
+#define RS_TABLE_SIZE  5
 #endif
-
+#endif
+                                                                                
 #ifndef BASE_BAUD
 #define BASE_BAUD 115200
 #endif
+                                                                                
 
 /* Offset of CPM register space */
 #define CPM_MAP_ADDR	(CCSRBAR + MPC85xx_CPM_OFFSET)

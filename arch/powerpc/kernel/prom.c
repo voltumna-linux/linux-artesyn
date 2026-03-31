@@ -395,7 +395,8 @@ static unsigned long __init unflatten_dt_node(unsigned long mem,
 			prev_pp = &pp->next;
 			memcpy(pp->value, ps, sz - 1);
 			((char *)pp->value)[sz - 1] = 0;
-			DBG("fixed up name for %s -> %s\n", pathp, pp->value);
+			DBG("fixed up name for %s -> %s\n", pathp, 
+				(char *)pp->value);
 		}
 	}
 	if (allnextpp) {
@@ -719,6 +720,7 @@ static int __init early_init_dt_scan_chosen(unsigned long node,
 					    const char *uname, int depth, void *data)
 {
 	unsigned long *lprop;
+	u32 *prop;
 	unsigned long l;
 	char *p;
 
@@ -759,6 +761,22 @@ static int __init early_init_dt_scan_chosen(unsigned long node,
        if (lprop)
                crashk_res.end = crashk_res.start + *lprop - 1;
 #endif
+
+#ifdef CONFIG_BLK_DEV_INITRD
+	DBG("Looking for initrd properties...\n");
+	prop = of_get_flat_dt_prop(node, "linux,initrd-start", &l);
+	if (prop) {
+		initrd_start = (unsigned long)__va(of_read_ulong(prop, l/4));
+		prop = of_get_flat_dt_prop(node, "linux,initrd-end", &l);
+		if (prop) {
+			initrd_end = (unsigned long)__va(of_read_ulong(prop, l/4));
+			initrd_below_start_ok = 1;
+		} else {
+			initrd_start = 0;
+		}
+	}
+	DBG("initrd_start=0x%lx  initrd_end=0x%lx\n", initrd_start, initrd_end);
+#endif /* CONFIG_BLK_DEV_INITRD */
 
 	/* Retreive command line */
  	p = of_get_flat_dt_prop(node, "bootargs", &l);
@@ -926,6 +944,12 @@ static void __init early_reserve_mem(void)
 	self_size = initial_boot_params->totalsize;
 	lmb_reserve(self_base, self_size);
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	/* then reserve the initrd, if any */
+	if (initrd_start && (initrd_end > initrd_start))
+		lmb_reserve(__pa(initrd_start), initrd_end - initrd_start);
+#endif /* CONFIG_BLK_DEV_INITRD */
+
 #ifdef CONFIG_PPC32
 	/* 
 	 * Handle the case where we might be booting from an old kexec
@@ -940,9 +964,6 @@ static void __init early_reserve_mem(void)
 			size_32 = *(reserve_map_32++);
 			if (size_32 == 0)
 				break;
-			/* skip if the reservation is for the blob */
-			if (base_32 == self_base && size_32 == self_size)
-				continue;
 			DBG("reserving: %x -> %x\n", base_32, size_32);
 			lmb_reserve(base_32, size_32);
 		}

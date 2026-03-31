@@ -230,11 +230,15 @@ static irqreturn_t vsc_sata_interrupt (int irq, void *dev_instance)
 				printk(KERN_DEBUG "%s: ignoring interrupt(s)\n", __FUNCTION__);
 				err_status = ap ? vsc_sata_scr_read(ap, SCR_ERROR) : 0;
 				vsc_sata_scr_write(ap, SCR_ERROR, err_status);
+
 				handled++;
 			}
 
 			if (ap && !(ap->flags & ATA_FLAG_DISABLED)) {
 				struct ata_queued_cmd *qc;
+
+				vsc_sata_scr_write(ap, SCR_ERROR, 0x00010002);
+				readl((void *)ap->ioaddr.status_addr);
 
 				qc = ata_qc_from_tag(ap, ap->active_tag);
 				if (qc && (!(qc->tf.flags & ATA_TFLAG_POLLING)))
@@ -250,7 +254,7 @@ static irqreturn_t vsc_sata_interrupt (int irq, void *dev_instance)
 					 */
 					u32 err_status;
 					err_status = vsc_sata_scr_read(ap, SCR_ERROR);
-					printk(KERN_DEBUG "%s: clearing interrupt, "
+					printk(KERN_ERR "%s: clearing interrupt, "
 					       "status %x; sata err status %x\n",
 					       __FUNCTION__,
 					       int_status, err_status);

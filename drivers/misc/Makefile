@@ -10,3 +10,5 @@ obj-$(CONFIG_LKDTM)		+= lkdtm.o
 obj-$(CONFIG_TIFM_CORE)       	+= tifm_core.o
 obj-$(CONFIG_TIFM_7XX1)       	+= tifm_7xx1.o
 obj-$(CONFIG_SGI_IOC4)		+= ioc4.o
+obj-$(CONFIG_MV64360_IDMA)      += mv64360_idma/
+obj-$(CONFIG_MPC85xx_DMA)      += mpc85xx_dma/

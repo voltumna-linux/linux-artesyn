@@ -82,6 +82,8 @@ extern void ibm_prep_init(void);
 
 extern void prep_find_bridges(void);
 
+extern void gen550_progress(char *, unsigned short);
+
 int _prep_type;
 
 extern void prep_residual_setup_pci(char *irq_edge_mask_lo, char *irq_edge_mask_hi);
@@ -1153,6 +1155,10 @@ prep_init(unsigned long r3, unsigned long r4, unsigned long r5,
 	ppc_md.get_rtc_time   = todc_get_rtc_time;
 
 	ppc_md.setup_io_mappings = prep_map_io;
+
+#ifdef  CONFIG_SERIAL_TEXT_DEBUG
+        ppc_md.progress = gen550_progress;
+#endif                          /* CONFIG_SERIAL_TEXT_DEBUG */
 
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 	ppc_ide_md.default_irq = prep_ide_default_irq;

@@ -17,6 +17,9 @@
 #include <asm/mpc8260.h>
 #include <asm/immap_cpm2.h>
 #endif
+#ifdef CONFIG_MVME3100
+#include <asm/mpc85xx.h>
+#endif
 #ifdef CONFIG_40x
 #include <asm/io.h>
 #endif
@@ -371,6 +374,24 @@ embed_config(bd_t **bdp)
 	bd->bi_busfreq = 48000000;
 }
 #endif /* BSEIP */
+
+#ifdef CONFIG_MVME3100
+                                                                                
+void
+embed_config(bd_t **bdp)
+{
+        bd_t    *bd;
+        bd = &bdinfo;
+
+	memcpy(bd, *bdp, sizeof(bd_t));
+	bd->bi_intfreq *= 1000000;
+	bd->bi_busfreq *= 1000000;
+        *bdp = bd;
+
+	return;
+}
+
+#endif /* CONFIG_MVME3100 */
 
 #ifdef CONFIG_FADS
 /* Build a board information structure for the FADS.

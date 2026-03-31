@@ -15,7 +15,7 @@
 
 DECLARE_RWSEM(pci_bus_sem);
 
-static struct pci_bus * __devinit
+static struct pci_bus * 
 pci_do_find_bus(struct pci_bus* bus, unsigned char busnr)
 {
 	struct pci_bus* child;
@@ -146,6 +146,8 @@ struct pci_dev * pci_get_slot(struct pci_bus *bus, unsigned int devfn)
  * device resides and the logical device number within that slot
  * in case of multi-function devices.
  *
+ * Note: the bus/slot search is limited to PCI domain (segment) 0.
+ *
  * Given a PCI bus and slot/function number, the desired PCI device
  * is located in system global list of PCI devices.  If the device
  * is found, a pointer to its data structure is returned.  If no
@@ -158,7 +160,8 @@ struct pci_dev * pci_get_bus_and_slot(unsigned int bus, unsigned int devfn)
 	struct pci_dev *dev = NULL;
 
 	while ((dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		if (dev->bus->number == bus && dev->devfn == devfn)
+		if (pci_domain_nr(dev->bus) == 0 && 
+		   (dev->bus->number == bus && dev->devfn == devfn))
 			return dev;
 	}
 	return NULL;

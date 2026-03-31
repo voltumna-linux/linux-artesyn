@@ -17,7 +17,6 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/init.h>
-#include <linux/pci.h>
 #include <linux/platform_device.h>
 
 #include <asm/io.h>
@@ -75,6 +74,25 @@ static irqreturn_t mpc_i2c_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/* Sometimes 9th clock pulse isn't generated, and slave doesn't release
+ * the bus, because it wants to send ACK.
+ * Following sequence of enabling/disabling and sending start/stop generates
+ * the pulse, so it's all OK.
+ */
+static void mpc_i2c_fixup(struct mpc_i2c *i2c)
+{
+	writeccr(i2c, 0);
+	udelay(30);
+	writeccr(i2c, CCR_MEN);
+	udelay(30);
+	writeccr(i2c, CCR_MSTA | CCR_MTX);
+	udelay(30);
+	writeccr(i2c, CCR_MSTA | CCR_MTX | CCR_MEN);
+	udelay(30);
+	writeccr(i2c, CCR_MEN);
+	udelay(30);
+}
+
 static int i2c_wait(struct mpc_i2c *i2c, unsigned timeout, int writing)
 {
 	unsigned long orig_jiffies = jiffies;
@@ -87,6 +105,7 @@ static int i2c_wait(struct mpc_i2c *i2c, unsigned timeout, int writing)
 			schedule();
 			if (time_after(jiffies, orig_jiffies + timeout)) {
 				pr_debug("I2C: timeout\n");
+				writeccr(i2c, 0);
 				result = -EIO;
 				break;
 			}
@@ -98,10 +117,12 @@ static int i2c_wait(struct mpc_i2c *i2c, unsigned timeout, int writing)
 		result = wait_event_interruptible_timeout(i2c->queue,
 			(i2c->interrupt & CSR_MIF), timeout * HZ);
 
-		if (unlikely(result < 0))
+		if (unlikely(result < 0)) {
 			pr_debug("I2C: wait interrupted\n");
-		else if (unlikely(!(i2c->interrupt & CSR_MIF))) {
+			writeccr(i2c, 0);
+		} else if (unlikely(!(i2c->interrupt & CSR_MIF))) {
 			pr_debug("I2C: wait timeout\n");
+			writeccr(i2c, 0);
 			result = -ETIMEDOUT;
 		}
 
@@ -159,7 +180,7 @@ static void mpc_i2c_stop(struct mpc_i2c *i2c)
 static int mpc_write(struct mpc_i2c *i2c, int target,
 		     const u8 * data, int length, int restart)
 {
-	int i;
+	int i, result;
 	unsigned timeout = i2c->adap.timeout;
 	u32 flags = restart ? CCR_RSTA : 0;
 
@@ -171,15 +192,17 @@ static int mpc_write(struct mpc_i2c *i2c, int target,
 	/* Write target byte */
 	writeb((target << 1), i2c->base + MPC_I2C_DR);
 
-	if (i2c_wait(i2c, timeout, 1) < 0)
-		return -1;
+	result = i2c_wait(i2c, timeout, 1);
+	if (result < 0)
+		return result;
 
 	for (i = 0; i < length; i++) {
 		/* Write data byte */
 		writeb(data[i], i2c->base + MPC_I2C_DR);
 
-		if (i2c_wait(i2c, timeout, 1) < 0)
-			return -1;
+		result = i2c_wait(i2c, timeout, 1);
+		if (result < 0)
+			return result;
 	}
 
 	return 0;
@@ -189,7 +212,7 @@ static int mpc_read(struct mpc_i2c *i2c, int target,
 		    u8 * data, int length, int restart)
 {
 	unsigned timeout = i2c->adap.timeout;
-	int i;
+	int i, result;
 	u32 flags = restart ? CCR_RSTA : 0;
 
 	/* Start with MEN */
@@ -200,8 +223,9 @@ static int mpc_read(struct mpc_i2c *i2c, int target,
 	/* Write target address byte - this time with the read flag set */
 	writeb((target << 1) | 1, i2c->base + MPC_I2C_DR);
 
-	if (i2c_wait(i2c, timeout, 1) < 0)
-		return -1;
+	result = i2c_wait(i2c, timeout, 1);
+	if (result < 0)
+		return result;
 
 	if (length) {
 		if (length == 1)
@@ -213,8 +237,9 @@ static int mpc_read(struct mpc_i2c *i2c, int target,
 	}
 
 	for (i = 0; i < length; i++) {
-		if (i2c_wait(i2c, timeout, 0) < 0)
-			return -1;
+		result = i2c_wait(i2c, timeout, 0);
+		if (result < 0)
+			return result;
 
 		/* Generate txack on next to last byte */
 		if (i == length - 2)
@@ -242,10 +267,14 @@ static int mpc_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 	while (readb(i2c->base + MPC_I2C_SR) & CSR_MBB) {
 		if (signal_pending(current)) {
 			pr_debug("I2C: Interrupted\n");
+			writeccr(i2c, 0);
 			return -EINTR;
 		}
 		if (time_after(jiffies, orig_jiffies + HZ)) {
 			pr_debug("I2C: timeout\n");
+			if (readb(i2c->base + MPC_I2C_SR) ==
+			    (CSR_MCF | CSR_MBB | CSR_RXAK))
+				mpc_i2c_fixup(i2c);
 			return -EIO;
 		}
 		schedule();
@@ -284,7 +313,6 @@ static struct i2c_adapter mpc_ops = {
 	.algo = &mpc_algo,
 	.class = I2C_CLASS_HWMON,
 	.timeout = 1,
-	.retries = 1
 };
 
 static int fsl_i2c_probe(struct platform_device *pdev)
@@ -296,9 +324,9 @@ static int fsl_i2c_probe(struct platform_device *pdev)
 
 	pdata = (struct fsl_i2c_platform_data *) pdev->dev.platform_data;
 
-	if (!(i2c = kzalloc(sizeof(*i2c), GFP_KERNEL))) {
+	i2c = kzalloc(sizeof(*i2c), GFP_KERNEL);
+	if (!i2c)
 		return -ENOMEM;
-	}
 
 	i2c->irq = platform_get_irq(pdev, 0);
 	if (i2c->irq < 0) {
@@ -328,6 +356,7 @@ static int fsl_i2c_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, i2c);
 
 	i2c->adap = mpc_ops;
+	i2c->adap.nr = pdev->id;
 	i2c_set_adapdata(&i2c->adap, i2c);
 	i2c->adap.dev.parent = &pdev->dev;
 	if ((result = i2c_add_adapter(&i2c->adap)) < 0) {
@@ -339,7 +368,7 @@ static int fsl_i2c_probe(struct platform_device *pdev)
 
       fail_add:
 	if (i2c->irq != 0)
-		free_irq(i2c->irq, NULL);
+		free_irq(i2c->irq, i2c);
       fail_irq:
 	iounmap(i2c->base);
       fail_map:

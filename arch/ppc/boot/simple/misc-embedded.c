@@ -18,9 +18,19 @@
 #include <asm/mpc8xx.h>
 #elif defined(CONFIG_8260)
 #include <asm/mpc8260.h>
+#elif defined(CONFIG_85xx)
+#include <asm/mpc85xx.h>
 #endif
 
 #include "nonstdio.h"
+
+#define MVME3100_SYSTEM_CONTROL_REG	0xE2000001
+#define MVME3100_BOARD_RESET		0xA0
+
+static inline void out_8(volatile unsigned char *addr, int val)
+{
+        __asm__ __volatile__("stb%U0%X0 %1,%0; eieio" : "=m" (*addr) : "r" (val));
+}
 
 /* The linker tells us where the image is. */
 extern char __image_begin, __image_end;
@@ -84,6 +94,8 @@ load_kernel(unsigned long load_addr, int num_words, unsigned long cksum, bd_t *b
 	char *cp, ch;
 	int timer = 0, zimage_size;
 	unsigned long initrd_size;
+	bd_t *saved_bp = bp;
+
 
 	/* First, capture the embedded board information.  Then
 	 * initialize the serial console port.
@@ -124,14 +136,50 @@ load_kernel(unsigned long load_addr, int num_words, unsigned long cksum, bd_t *b
 	}
 
 	if ( bp ) {
-		puts("board data at: "); puthex((unsigned long)bp);
+		puts("board data at: "); puthex((unsigned long)saved_bp);
 		puts(" ");
-		puthex((unsigned long)((unsigned long)bp + sizeof(bd_t)));
+		puthex((unsigned long)((unsigned long)saved_bp + sizeof(bd_t)));
 		puts("\nrelocated to:  ");
 		puthex((unsigned long)hold_residual);
 		puts(" ");
 		puthex((unsigned long)((unsigned long)hold_residual + sizeof(bd_t)));
 		puts("\n");
+#if 0
+		puts("immr base: "); puthex((unsigned long)bp->bi_immr_base);
+		puts("\n");
+		puts("baud rate: "); puthex((unsigned long)bp->bi_baudrate);
+		puts("\n");
+		puts("mem size: "); puthex((unsigned long)bp->bi_memsize);
+		puts("\n");
+		puts("int freq: "); puthex((unsigned long)bp->bi_intfreq);
+		puts("\n");
+		puts("bus freq: "); puthex((unsigned long)bp->bi_busfreq);
+		puts("\n");
+		puts("eth0 : "); 
+		puthex((unsigned long)bp->bi_enetaddr[0]);
+		puthex((unsigned long)bp->bi_enetaddr[1]);
+		puthex((unsigned long)bp->bi_enetaddr[2]);
+		puthex((unsigned long)bp->bi_enetaddr[3]);
+		puthex((unsigned long)bp->bi_enetaddr[4]);
+		puthex((unsigned long)bp->bi_enetaddr[5]);
+		puts("\n");
+		puts("eth1 : "); 
+		puthex((unsigned long)bp->bi_enet1addr[0]);
+		puthex((unsigned long)bp->bi_enet1addr[1]);
+		puthex((unsigned long)bp->bi_enet1addr[2]);
+		puthex((unsigned long)bp->bi_enet1addr[3]);
+		puthex((unsigned long)bp->bi_enet1addr[4]);
+		puthex((unsigned long)bp->bi_enet1addr[5]);
+		puts("\n");
+		puts("eth2 : "); 
+		puthex((unsigned long)bp->bi_enet2addr[0]);
+		puthex((unsigned long)bp->bi_enet2addr[1]);
+		puthex((unsigned long)bp->bi_enet2addr[2]);
+		puthex((unsigned long)bp->bi_enet2addr[3]);
+		puthex((unsigned long)bp->bi_enet2addr[4]);
+		puthex((unsigned long)bp->bi_enet2addr[5]);
+		puts("\n");
+#endif
 	}
 
 	/*
@@ -212,7 +260,8 @@ load_kernel(unsigned long load_addr, int num_words, unsigned long cksum, bd_t *b
 	*cp = 0;
 	puts("\nUncompressing Linux...");
 
-	gunzip(0, 0x400000, zimage_start, &zimage_size);
+	gunzip(0, 0x800000, zimage_start, &zimage_size);
+//	out_8((char *)MVME3100_SYSTEM_CONTROL_REG, MVME3100_BOARD_RESET);
 	flush_instruction_cache();
 	puts("done.\n");
 	{

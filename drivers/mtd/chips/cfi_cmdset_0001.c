@@ -54,8 +54,8 @@ static int cfi_intelext_write_buffers(struct mtd_info *, loff_t, size_t, size_t 
 static int cfi_intelext_writev(struct mtd_info *, const struct kvec *, unsigned long, loff_t, size_t *);
 static int cfi_intelext_erase_varsize(struct mtd_info *, struct erase_info *);
 static void cfi_intelext_sync (struct mtd_info *);
-static int cfi_intelext_lock(struct mtd_info *mtd, loff_t ofs, size_t len);
-static int cfi_intelext_unlock(struct mtd_info *mtd, loff_t ofs, size_t len);
+static int cfi_intelext_lock(struct mtd_info *mtd, loff_t ofs, u_int64_t len);
+static int cfi_intelext_unlock(struct mtd_info *mtd, loff_t ofs, u_int64_t len);
 #ifdef CONFIG_MTD_OTP
 static int cfi_intelext_read_fact_prot_reg (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
 static int cfi_intelext_read_user_prot_reg (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
@@ -1888,12 +1888,12 @@ out:	put_chip(map, chip, adr);
 	return ret;
 }
 
-static int cfi_intelext_lock(struct mtd_info *mtd, loff_t ofs, size_t len)
+static int cfi_intelext_lock(struct mtd_info *mtd, loff_t ofs, u_int64_t len)
 {
 	int ret;
 
 #ifdef DEBUG_LOCK_BITS
-	printk(KERN_DEBUG "%s: lock status before, ofs=0x%08llx, len=0x%08X\n",
+	printk(KERN_DEBUG "%s: lock status before, ofs=0x%08llx, len=0x%016llx\n",
 	       __FUNCTION__, ofs, len);
 	cfi_varsize_frob(mtd, do_printlockstatus_oneblock,
 		ofs, len, 0);
@@ -1912,12 +1912,12 @@ static int cfi_intelext_lock(struct mtd_info *mtd, loff_t ofs, size_t len)
 	return ret;
 }
 
-static int cfi_intelext_unlock(struct mtd_info *mtd, loff_t ofs, size_t len)
+static int cfi_intelext_unlock(struct mtd_info *mtd, loff_t ofs, u_int64_t len)
 {
 	int ret;
 
 #ifdef DEBUG_LOCK_BITS
-	printk(KERN_DEBUG "%s: lock status before, ofs=0x%08llx, len=0x%08X\n",
+	printk(KERN_DEBUG "%s: lock status before, ofs=0x%08llx, len=0x%016llx\n",
 	       __FUNCTION__, ofs, len);
 	cfi_varsize_frob(mtd, do_printlockstatus_oneblock,
 		ofs, len, 0);

@@ -87,6 +87,7 @@ unsigned long serial_init(int chan, void *ignored)
 	/* How far apart the registers are. */
 	shift = rs_table[chan].iomem_reg_shift;
 
+#if !(defined(CONFIG_MVME3100)) 
 	/* save the LCR */
 	lcr = serial_inb(com_port + (UART_LCR << shift));
 	
@@ -118,6 +119,7 @@ unsigned long serial_init(int chan, void *ignored)
 		/* Clear & enable FIFOs */
 		serial_outb(com_port + (UART_FCR << shift), 0x07);
 	}
+#endif
 
 	return (com_port);
 }

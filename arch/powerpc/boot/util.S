@@ -20,6 +20,22 @@
 #include "ppc_asm.h"
 
 #define SPRN_PVR        0x11F   /* Processor Version Register */
+#define SPRN_HID0       0x3F0 
+#define HID0_ICE        (1<<15)
+#define HID0_ICFI       (1<<11)
+#define HID0_DCE        (1<<14)
+#define HID0_DCI        (1<<10) 
+#if defined(CONFIG_8xx) || defined(CONFIG_403GCX)
+#define L1_CACHE_SHIFT          4
+#define MAX_COPY_PREFETCH       1
+#elif defined(CONFIG_PPC32)
+#define L1_CACHE_SHIFT          5
+#define MAX_COPY_PREFETCH       4
+#else /* CONFIG_PPC64 */
+#define L1_CACHE_SHIFT          7
+#endif
+
+#define L1_CACHE_BYTES          (1 << L1_CACHE_SHIFT)
 
 	.text
 
@@ -86,3 +102,72 @@ udelay:
 	cmpw	0,r6,r9
 	blt	2b
 3:	blr
+
+
+/*
+ * Flush and enable instruction cache
+ * First, flush the data cache in case it was enabled and may be
+ * holding instructions for copy back.
+ */
+        .globl flush_instruction_cache
+flush_instruction_cache:
+        mflr    r6
+        bl      flush_data_cache
+
+#ifdef CONFIG_8xx
+        lis     r3, IDC_INVALL@h
+        mtspr   SPRN_IC_CST, r3
+        lis     r3, IDC_ENABLE@h
+        mtspr   SPRN_IC_CST, r3
+        lis     r3, IDC_DISABLE@h
+        mtspr   SPRN_DC_CST, r3
+#elif CONFIG_4xx
+        lis     r3,start@h              # r9 = &_start
+        lis     r4,_etext@ha
+        addi    r4,r4,_etext@l          # r8 = &_etext
+1:      dcbf    r0,r3                   # Flush the data cache
+        icbi    r0,r3                   # Invalidate the instruction cache
+        addi    r3,r3,0x10              # Increment by one cache line
+        cmplw   cr0,r3,r4               # Are we at the end yet?
+        blt     1b                      # No, keep flushing and invalidating
+#elif CONFIG_FSL_BOOKE
+        mfspr   r3,SPRN_L1CSR1
+        ori     r3,r3,L1CSR1_ICFI|L1CSR1_ICLFR
+        mtspr   SPRN_L1CSR1,r3
+        isync
+#else
+        /* Enable, invalidate and then disable the L1 icache/dcache. */
+        li      r3,0
+        ori     r3,r3,(HID0_ICE|HID0_DCE|HID0_ICFI|HID0_DCI)
+        mfspr   r4,SPRN_HID0
+        or      r5,r4,r3
+        isync
+        mtspr   SPRN_HID0,r5
+        sync
+        isync
+        ori     r5,r4,HID0_ICE  /* Enable cache */
+        mtspr   SPRN_HID0,r5
+        sync
+        isync
+#endif
+        mtlr    r6
+        blr
+
+#define NUM_CACHE_LINES 128*8
+#define cache_flush_buffer 0x1000
+
+/*
+ * Flush data cache
+ * Do this by just reading lots of stuff into the cache.
+ */
+        .globl flush_data_cache
+flush_data_cache:
+        lis     r3,cache_flush_buffer@h
+        ori     r3,r3,cache_flush_buffer@l
+        li      r4,NUM_CACHE_LINES
+        mtctr   r4
+00:     lwz     r4,0(r3)
+        addi    r3,r3,L1_CACHE_BYTES    /* Next line, please */
+        bdnz    00b
+10:     blr
+

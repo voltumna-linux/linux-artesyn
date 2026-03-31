@@ -166,7 +166,7 @@ static char Mesquite_pci_IRQ_map[23] =
 	0,	/* Slot 8  - unused */
 	0,	/* Slot 9  - unused */
 	0,	/* Slot 10 - unused */
-	0,	/* Slot 11 - unused */
+	0x1e,	/* Slot 11 - unused */
 	0,	/* Slot 12 - unused */
 	0,	/* Slot 13 - unused */
 	2,	/* Slot 14 - Ethernet */
@@ -194,7 +194,7 @@ static char Sitka_pci_IRQ_map[21] =
 	0,      /* Slot 8  - unused */
 	0,      /* Slot 9  - unused */
 	0,      /* Slot 10 - unused */
-	0,      /* Slot 11 - unused */
+	0x1e,   /* Slot 11 - unused */
 	0,      /* Slot 12 - unused */
 	0,      /* Slot 13 - unused */
 	2,      /* Slot 14 - Ethernet */
@@ -719,6 +719,59 @@ int mot_entry = -1;
 int prep_keybd_present = 1;
 int MotMPIC;
 int mot_multi;
+unsigned int ioremap_offset = 0xc0000000;
+static struct pci_controller* hose;
+
+#ifdef CONFIG_PCI_MCP750_BUS_0_DEVICES
+static int __init
+reprogram_raven (unsigned int *offset)
+{
+        unsigned char *raven_base;
+        unsigned int slvaddr2;
+        unsigned int slvattr2;
+        unsigned int slvaddr3;
+
+       raven_base = (unsigned char *)ioremap(0xFEFF0000, 1024);
+       if (!raven_base) {
+                printk("reprogram_raven: ioremap() failure\n");
+                return 0;
+       }
+
+       if (le32_to_cpu(readl(raven_base)) != 0x10574801) {
+                printk("reprogram_raven: Bad signature?\n");
+                iounmap (raven_base);
+                return 0;
+       }
+        /*
+         * New PCI IO and PCI Mem ranges programmed into Raven
+         * PCI I/O 0x00000000 - 0x000FFFFF
+         * PCI Mem 0x00000000 - 0x7CDFFFFF
+         */
+
+
+        slvaddr2 = le32_to_cpu (readl (raven_base + 0x50));
+        slvattr2 = le32_to_cpu (readl (raven_base + 0x54));
+        slvaddr3 = le32_to_cpu (readl (raven_base + 0x58));
+
+        slvaddr2 = (slvaddr2 & 0x0000FFFF) | 0x80100000;   /* Orig 90000000 */
+        slvattr2 = (slvattr2 & 0x0000FFFF) | 0x7FF00000;   /* Orig 70000000 */
+        slvaddr3 = (slvaddr3 & 0xFFFF0000) | 0x0000800F;   /* Orig 00008fff */
+
+        writel (cpu_to_le32(slvaddr2), raven_base + 0x50);
+        writel (cpu_to_le32(slvattr2), raven_base + 0x54);
+        writel (cpu_to_le32(slvaddr3), raven_base + 0x58);
+
+        *offset = le32_to_cpu (readl (raven_base + 0x50));
+        *offset &= 0xFFFF0000;
+
+        iounmap (raven_base);
+        return 1;
+}
+#endif  /* CONFIG_PCI_MCP750_BUS_0_DEVICES */
+
+static void __init
+prep_init_resource(struct resource *res, unsigned long start,
+		   unsigned long end, int flags);
 
 int __init
 raven_init(void)
@@ -754,6 +807,17 @@ raven_init(void)
 		return 0;
 	}
 
+#ifdef CONFIG_PCI_MCP750_BUS_0_DEVICES
+        early_write_config_dword(0, 0, 0, PCI_BASE_ADDRESS_1, 0x1c0000);
+        if (!reprogram_raven(&ioremap_offset)) {
+                OpenPIC_Addr = NULL;
+                return 0;
+        }
+        printk("PCI Memory Base 0x%x\n", ioremap_offset);
+        hose->pci_mem_offset = ioremap_offset;
+        prep_init_resource(&hose->mem_resources[0], ioremap_offset, 0xfeffffff,
+                                IORESOURCE_MEM);
+#endif
 
 	/* Read the memory base register. */
 	early_read_config_dword(NULL, 0, 0, PCI_BASE_ADDRESS_1, &pci_membase);
@@ -764,7 +828,7 @@ raven_init(void)
 	}
 
 	/* Map the Raven MPIC registers to virtual memory. */
-	OpenPIC_Addr = ioremap(pci_membase+0xC0000000, 0x22000);
+	OpenPIC_Addr = ioremap(pci_membase+ioremap_offset, 0x22000);
 
 	OpenPIC_InitSenses = prep_openpic_initsenses;
 	OpenPIC_NumInitSenses = sizeof(prep_openpic_initsenses);
@@ -1078,6 +1142,9 @@ prep_pib_init(void)
 
 			reg |= 0x03; /* IDE: Chip Enable Bits */
 			pci_write_config_byte(dev, 0x40, reg);
+                       /* Force correct IDE function interrupt */
+                        dev->irq = 14;
+                        pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
 		}
 		if ((dev = pci_get_device(PCI_VENDOR_ID_VIA,
 						PCI_DEVICE_ID_VIA_82C586_2,
@@ -1169,6 +1236,72 @@ Powerplus_Map_Non0(struct pci_dev *dev)
 	 * Otherwise, assume it's a PMC site and get the interrupt line
 	 * value from the interrupt routing table.
 	 */
+        if ( mot_info[mot_entry].secondary_bridge_devfn &&
+            (mot_info[mot_entry].secondary_bridge_devfn == tdev->devfn))
+        {
+                intline = mot_info[mot_entry].pci_irq_list->secondary[intpin];
+        }
+        else
+/*
+*       First there's the MCP750.  This card takes all four interrupt
+*       lines from the PMC board and wires them together.  Simply
+*       stick in the value we'd use if it was a bus 0 device.
+*       NOTE the pmc slot is dev number 16
+*/
+        if (((mot_info[mot_entry].base_type == 0xE0)  ||   /* MCP750 */
+             (mot_info[mot_entry].base_type == 0xE2)) &&   /* MCP750 w/ HAC
+*/
+            (devnum == 16))                                /* PMC Slot */
+        {
+                printk(KERN_INFO "Reassigning PCI_INT_LINE"
+                        " for onboard PMC device behind P2P bridge\n");
+                intline = openpic_to_irq(Motherboard_map[devnum]);
+        }
+        else
+
+/*
+*       Then there's the MCPN750.  This card has two PMC slots, but unlike
+*       the MCP750, there's a different path for all four interrupts.
+*               Slot 16 - PMC site 1            Slot 17 - PMC site 2
+*                  INTA - OpenPic 25               INTB - OpenPic 25
+*                  INTB - OpenPic 26               INTC - OpenPic 26
+*                  INTC - OpenPic 27               INTD - OpenPic 27
+*                  INTD - OpenPic 28               INTA - OpenPic 28
+*
+*       The swizzle code gets the right value for PMC site 1, so only
+*       PMC site 2 is handled here
+*/
+        if ((mot_info[mot_entry].base_type == 0xE1) &&  /* MCPN750 */
+            (devnum == 17))
+        {
+                printk(KERN_INFO "Reassigning PCI_INT_LINE"
+                        " for onboard PMC device behind P2P bridge\n");
+                intpin = (intpin + 3) % 4;
+                intline = mot_info[mot_entry].pci_irq_list->primary[intpin];     }
+        else
+/*
+*       Then there's the MCP750 once again.  The high availability
+*       version of this card is mated with a card containing the
+*       hot swap controller device.  Normally this device sits on bus 0,
+*       however, one version of this card introduced a second device
+*       requiring even more tomfoolery.  A bridge is placed on bus 0, dev 22
+*       and the hot swap controller and other device are placed behind
+*       the bridge at devices 6 and 3 respectively.  Then, to keep things
+*       aligned from one version of the card to another, the interrupt
+*       lines from those two devices are setup so that the hot swap
+*       controller gets the same interrupt in either case.  (Convenient,
+*       since the hot swap controller driver has it hard coded!!!)
+*/
+        if ((mot_info[mot_entry].base_type == 0xE2) &&  /* MCP750 w/ HAC */
+            (devnum == 22))
+        {
+                printk(KERN_INFO "Reassigning PCI_INT_LINE"
+                        " for onboard HSC device behind P2P bridge\n");
+                intpin = (intpin + 2) % 4;
+                intline = mot_info[mot_entry].pci_irq_list->secondary[intpin];
+        }
+
+#if 0
 	if (mot_info[mot_entry].secondary_bridge_devfn) {
 		pbus = dev->bus;
 
@@ -1190,6 +1323,8 @@ Powerplus_Map_Non0(struct pci_dev *dev)
 			}
 		}
 	}
+#endif
+
 
 	/* Write calculated interrupt value to header and device list */
 	dev->irq = intline;
@@ -1201,7 +1336,9 @@ prep_pcibios_fixup(void)
 {
         struct pci_dev *dev = NULL;
 	int irq;
+	unsigned char intpin;
 	int have_openpic = (OpenPIC_Addr != NULL);
+	unsigned int devnum;
 
 	prep_route_pci_interrupts();
 
@@ -1229,6 +1366,34 @@ prep_pcibios_fixup(void)
 			irq = Motherboard_map[PCI_SLOT(dev->devfn)];
 			dev->irq = have_openpic ? openpic_to_irq(irq)
 						: Motherboard_routes[irq];
+                        /* Adjust for multifunction devices used in the 
+                           PMC slots */ 
+			if (mot_info[mot_entry].base_type == 0xE1) {/*MCPN750*/
+			/*
+			 *       The MCPN750 has two PMC slots with 
+			 *	 the following INT assignments:
+			 *       Slot 16 - PMC site 1      Slot 17 - PMC site 2
+			 *       INTA - OpenPic 25         INTB - OpenPic 25
+			 *       INTB - OpenPic 26         INTC - OpenPic 26
+			 *       INTC - OpenPic 27         INTD - OpenPic 27
+			 *       INTD - OpenPic 28         INTA - OpenPic 28
+ 			 */
+				devnum = PCI_SLOT(dev->devfn);
+				if ((devnum == 16) || (devnum == 17)) {  /* PMC slots on board */
+					/* Read the interrupt pin of the 
+					 * device and adjust for indexing */
+					pci_read_config_byte(dev,
+						PCI_INTERRUPT_PIN, &intpin);
+					if ((intpin < 1) || (intpin > 4))
+						continue;
+					intpin--;
+					printk(KERN_INFO "Reassigning PCI_INT_LINE for onboard PMC device\n");
+					if (devnum == 17)
+						intpin = (intpin + 3) % 4;
+					dev->irq = mot_info[mot_entry].pci_irq_list->primary[intpin];
+				}
+			}
+
 		}
 		/*
 		 * Finally, if we don't have residual data and the bus is
@@ -1293,8 +1458,6 @@ prep_init_resource(struct resource *res, unsigned long start,
 void __init
 prep_find_bridges(void)
 {
-	struct pci_controller* hose;
-
 	hose = pcibios_alloc_controller();
 	if (!hose)
 		return;
@@ -1303,10 +1466,12 @@ prep_find_bridges(void)
 	hose->last_busno = 0xff;
 	hose->pci_mem_offset = PREP_ISA_MEM_BASE;
 	hose->io_base_phys = PREP_ISA_IO_BASE;
-	hose->io_base_virt = ioremap(PREP_ISA_IO_BASE, 0x800000);
-	prep_init_resource(&hose->io_resource, 0, 0x007fffff, IORESOURCE_IO);
+	hose->io_base_virt = ioremap(PREP_ISA_IO_BASE, 0x100000);
+	prep_init_resource(&hose->io_resource, 0, 0x000fffff, IORESOURCE_IO);
+#ifndef CONFIG_PCI_MCP750_BUS_O_DEVICES
 	prep_init_resource(&hose->mem_resources[0], 0xc0000000, 0xfeffffff,
 			   IORESOURCE_MEM);
+#endif
 	setup_indirect_pci(hose, PREP_ISA_IO_BASE + 0xcf8,
 			   PREP_ISA_IO_BASE + 0xcfc);
 

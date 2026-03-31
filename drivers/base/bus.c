@@ -653,11 +653,13 @@ struct bus_type *get_bus(struct bus_type *bus)
 	return bus ? container_of(subsys_get(&bus->subsys),
 				struct bus_type, subsys) : NULL;
 }
+EXPORT_SYMBOL_GPL(get_bus);
 
 void put_bus(struct bus_type * bus)
 {
 	subsys_put(&bus->subsys);
 }
+EXPORT_SYMBOL_GPL(put_bus);
 
 
 /**

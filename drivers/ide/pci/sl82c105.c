@@ -409,6 +409,9 @@ static void __devinit init_hwif_sl82c105(ide_hwif_t *hwif)
 
 	DBG(("init_hwif_sl82c105(hwif: ide%d)\n", hwif->index));
 
+        if ((!hwif->irq) || (hwif->irq == 14) || (hwif->irq == 15))
+                hwif->irq = hwif->channel ? 15 : 14;
+
 	hwif->tuneproc = tune_sl82c105;
 	hwif->selectproc = sl82c105_selectproc;
 	hwif->resetproc = sl82c105_resetproc;

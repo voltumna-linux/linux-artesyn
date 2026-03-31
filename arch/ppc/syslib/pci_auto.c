@@ -22,12 +22,13 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/pci.h>
+#include <asm/machdep.h>
 
 #include <asm/pci-bridge.h>
 
 #define	PCIAUTO_IDE_MODE_MASK		0x05
 
-#undef DEBUG
+#undef DEBUG 
 
 #ifdef DEBUG
 #define DBG(x...) printk(x)
@@ -511,5 +512,6 @@ int __init pciauto_bus_scan(struct pci_controller *hose, int current_bus)
 			}
 		}
 	}
+
 	return sub_bus;
 }

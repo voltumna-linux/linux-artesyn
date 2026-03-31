@@ -196,11 +196,15 @@ harrier_init(struct pci_controller *hose,
 	out_be32((uint *) (ppc_reg_base + HARRIER_OTOF1_OFF), offset);
 
 	/* Enable MPIC */
-	OpenPIC_Addr = (void *)processor_mpic_base;
+	if (hose->index == 0) 
+		OpenPIC_Addr = (void *)processor_mpic_base;
+	else
+		OpenPIC2_Addr = (void *)processor_mpic_base;
 	addr = (processor_mpic_base >> 16) | 1;
 	out_be16((ushort *) (ppc_reg_base + HARRIER_MBAR_OFF), addr);
 	out_8((u_char *) (ppc_reg_base + HARRIER_MPIC_CSR_OFF),
 	      HARRIER_MPIC_OPI_ENABLE);
+	
 
 	return 0;
 }

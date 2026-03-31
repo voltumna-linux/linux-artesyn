@@ -150,9 +150,22 @@ static struct list_head ptype_base[16];	/* 16 way hashed list */
 static struct list_head ptype_all;		/* Taps */
 
 #ifdef CONFIG_NET_DMA
-static struct dma_client *net_dma_client;
-static unsigned int net_dma_count;
-static spinlock_t net_dma_event_lock;
+struct net_dma {
+        struct dma_client client;
+        spinlock_t lock;
+        cpumask_t channel_mask;
+        struct dma_chan *channels[NR_CPUS];
+};
+
+static enum dma_state_client
+netdev_dma_event(struct dma_client *client, struct dma_chan *chan,
+        enum dma_state state);
+
+static struct net_dma net_dma = {
+        .client = {
+                .event_callback = netdev_dma_event,
+        },
+};
 #endif
 
 /*
@@ -1942,13 +1955,14 @@ out:
 	 * There may not be any more sk_buffs coming right now, so push
 	 * any pending DMA copies to hardware
 	 */
-	if (net_dma_client) {
-		struct dma_chan *chan;
-		rcu_read_lock();
-		list_for_each_entry_rcu(chan, &net_dma_client->channels, client_node)
-			dma_async_memcpy_issue_pending(chan);
-		rcu_read_unlock();
-	}
+        if (!cpus_empty(net_dma.channel_mask)) {
+                int chan_idx;
+                for_each_cpu_mask(chan_idx, net_dma.channel_mask) {
+                        struct dma_chan *chan = net_dma.channels[chan_idx];
+                        if (chan)
+                                dma_async_memcpy_issue_pending(chan);
+                }
+        }
 #endif
 	local_irq_enable();
 	return;
@@ -3386,76 +3400,108 @@ static int dev_cpu_callback(struct notifier_block *nfb,
 
 #ifdef CONFIG_NET_DMA
 /**
- * net_dma_rebalance -
- * This is called when the number of channels allocated to the net_dma_client
- * changes.  The net_dma_client tries to have one DMA channel per CPU.
+ * net_dma_rebalance - try to maintain one DMA channel per CPU
+ * @net_dma: DMA client and associated data (lock, channels, channel_mask)
+ *
+ * This is called when the number of channels allocated to the net_dma client
+ * changes.  The net_dma client tries to have one DMA channel per CPU.
  */
-static void net_dma_rebalance(void)
+
+static void net_dma_rebalance(struct net_dma *net_dma)
 {
-	unsigned int cpu, i, n;
-	struct dma_chan *chan;
+        unsigned int cpu, i, n, chan_idx;
+        struct dma_chan *chan;
 
-	if (net_dma_count == 0) {
-		for_each_online_cpu(cpu)
-			rcu_assign_pointer(per_cpu(softnet_data, cpu).net_dma, NULL);
-		return;
-	}
+        if (cpus_empty(net_dma->channel_mask)) {
+                for_each_online_cpu(cpu)
+                        rcu_assign_pointer(per_cpu(softnet_data, cpu).net_dma, NULL);
+                return;
+        }
 
-	i = 0;
-	cpu = first_cpu(cpu_online_map);
+        i = 0;
+        cpu = first_cpu(cpu_online_map);
 
-	rcu_read_lock();
-	list_for_each_entry(chan, &net_dma_client->channels, client_node) {
-		n = ((num_online_cpus() / net_dma_count)
-		   + (i < (num_online_cpus() % net_dma_count) ? 1 : 0));
+        for_each_cpu_mask(chan_idx, net_dma->channel_mask) {
+                chan = net_dma->channels[chan_idx];
 
-		while(n) {
-			per_cpu(softnet_data, cpu).net_dma = chan;
-			cpu = next_cpu(cpu, cpu_online_map);
-			n--;
-		}
-		i++;
-	}
-	rcu_read_unlock();
+                n = ((num_online_cpus() / cpus_weight(net_dma->channel_mask))
+                   + (i < (num_online_cpus() %
+                        cpus_weight(net_dma->channel_mask)) ? 1 : 0));
+
+                while(n) {
+                        per_cpu(softnet_data, cpu).net_dma = chan;
+                        cpu = next_cpu(cpu, cpu_online_map);
+                        n--;
+                }
+                i++;
+        }
 }
 
 /**
  * netdev_dma_event - event callback for the net_dma_client
  * @client: should always be net_dma_client
  * @chan: DMA channel for the event
- * @event: event type
+ * @state: DMA state to be handled
  */
-static void netdev_dma_event(struct dma_client *client, struct dma_chan *chan,
-	enum dma_event event)
+static enum dma_state_client
+netdev_dma_event(struct dma_client *client, struct dma_chan *chan,
+        enum dma_state state)
 {
-	spin_lock(&net_dma_event_lock);
-	switch (event) {
-	case DMA_RESOURCE_ADDED:
-		net_dma_count++;
-		net_dma_rebalance();
-		break;
-	case DMA_RESOURCE_REMOVED:
-		net_dma_count--;
-		net_dma_rebalance();
-		break;
-	default:
-		break;
-	}
-	spin_unlock(&net_dma_event_lock);
+        int i, found = 0, pos = -1;
+        struct net_dma *net_dma =
+                container_of(client, struct net_dma, client);
+        enum dma_state_client ack = DMA_DUP; /* default: take no action */
+
+        spin_lock(&net_dma->lock);
+        switch (state) {
+        case DMA_RESOURCE_AVAILABLE:
+                for (i = 0; i < NR_CPUS; i++)
+                        if (net_dma->channels[i] == chan) {
+                                found = 1;
+                                break;
+                        } else if (net_dma->channels[i] == NULL && pos < 0)
+                                pos = i;
+
+                if (!found && pos >= 0) {
+                        ack = DMA_ACK;
+                        net_dma->channels[pos] = chan;
+                        cpu_set(pos, net_dma->channel_mask);
+                        net_dma_rebalance(net_dma);
+                }
+                break;
+        case DMA_RESOURCE_REMOVED:
+                for (i = 0; i < NR_CPUS; i++)
+                        if (net_dma->channels[i] == chan) {
+                                found = 1;
+                                pos = i;
+                                break;
+                        }
+
+                if (found) {
+                        ack = DMA_ACK;
+                        cpu_clear(pos, net_dma->channel_mask);
+                        net_dma->channels[i] = NULL;
+                        net_dma_rebalance(net_dma);
+                }
+                break;
+        default:
+                break;
+        }
+        spin_unlock(&net_dma->lock);
+
+        return ack;
 }
 
 /**
- * netdev_dma_regiser - register the networking subsystem as a DMA client
+ * netdev_dma_register - register the networking subsystem as a DMA client
  */
 static int __init netdev_dma_register(void)
 {
-	spin_lock_init(&net_dma_event_lock);
-	net_dma_client = dma_async_client_register(netdev_dma_event);
-	if (net_dma_client == NULL)
-		return -ENOMEM;
-
-	dma_async_client_chan_request(net_dma_client, num_online_cpus());
-	return 0;
+        spin_lock_init(&net_dma.lock);
+        dma_cap_set(DMA_MEMCPY, net_dma.client.cap_mask);
+        dma_async_client_register(&net_dma.client);
+        dma_async_client_chan_request(&net_dma.client);
+        return 0;
 }
 
 #else

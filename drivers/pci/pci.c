@@ -28,7 +28,7 @@ unsigned int pci_pm_d3_delay = 10;
  * Given a PCI bus, returns the highest PCI bus number present in the set
  * including the given PCI bus and its list of child PCI buses.
  */
-unsigned char __devinit
+unsigned char 
 pci_bus_max_busnr(struct pci_bus* bus)
 {
 	struct list_head *tmp;
@@ -1149,7 +1149,7 @@ pci_set_consistent_dma_mask(struct pci_dev *dev, u64 mask)
 }
 #endif
      
-static int __devinit pci_init(void)
+static int  pci_init(void)
 {
 	struct pci_dev *dev = NULL;
 
@@ -1159,7 +1159,7 @@ static int __devinit pci_init(void)
 	return 0;
 }
 
-static int __devinit pci_setup(char *str)
+static int pci_setup(char *str)
 {
 	while (str) {
 		char *k = strchr(str, ',');

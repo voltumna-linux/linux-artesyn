@@ -68,6 +68,11 @@ config TQM8560
 	help
 	  This option enables support for the TQ Components TQM8560 board.
 
+config MVME3100
+	bool "Motorola Embedded Communications and Computing 8540 MVME3100"
+	help
+	  This option enables support for the Motorola ECC 8540 MVME3100 board
+                                                                                
 endchoice
 
 # It's often necessary to know the specific 85xx processor type.
@@ -75,7 +80,7 @@ endchoice
 # don't need to ask more redundant questions.
 config MPC8540
 	bool
-	depends on MPC8540_ADS || TQM8540
+	depends on MPC8540_ADS || TQM8540 || MVME3100
 	default y
 
 config MPC8548

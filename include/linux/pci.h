@@ -32,6 +32,28 @@
 #define PCI_SLOT(devfn)		(((devfn) >> 3) & 0x1f)
 #define PCI_FUNC(devfn)		((devfn) & 0x07)
 
+#ifdef CONFIG_PCI_SERVICES
+
+#define PCI_FIXUP_HEADER        1  
+
+/*
+ * This is the add/delete/swap node structure passed with the ioctl().
+ */
+                                                                                
+#define PCI_NODE_NOP    0               /* NOP ioctl command */
+#define PCI_NODE_ADD    1               /* Add node ioctl command */
+#define PCI_NODE_DEL    2               /* Delete node ioctl command */
+#define PCI_NODE_SWAP   3               /* Swap node ioctl command */
+                                                                                
+struct pci_node {
+        unsigned int    cmd;            /* command  */
+        unsigned int    number;         /* bus number */
+        unsigned int    devfn;          /* encoded device & function index */
+        unsigned int    secdevfn;       /* secondary (swap) encoded device & function index
+*/
+};
+#endif
+
 /* Ioctls for /proc/bus/pci/X/Y nodes. */
 #define PCIIOC_BASE		('P' << 24 | 'C' << 16 | 'I' << 8)
 #define PCIIOC_CONTROLLER	(PCIIOC_BASE | 0x00)	/* Get controller for PCI device. */
@@ -54,6 +76,20 @@
 /* Include the ID list */
 #include <linux/pci_ids.h>
 
+#ifdef CONFIG_PCI_SERVICES
+/*
+ * There is one pci_res structure for each device. This
+ * structure holds the alignment, type, and size.
+ */
+struct pci_res {
+        struct pci_res *next;
+        unsigned int    type;
+        unsigned long   align;
+        unsigned long   size;
+        unsigned long   baddr;
+};
+#endif
+                                                                                
 /* File state for mmap()s on /proc/bus/pci/X/Y */
 enum pci_mmap_state {
 	pci_mmap_io,
@@ -174,6 +210,13 @@ struct pci_dev {
 	struct bin_attribute *rom_attr; /* attribute descriptor for sysfs ROM entry */
 	int rom_attr_enabled;		/* has display of the rom attribute been enabled? */
 	struct bin_attribute *res_attr[DEVICE_COUNT_RESOURCE]; /* sysfs file for resources */
+#ifdef CONFIG_PCI_SERVICES
+        /*
+         * Resources for each BAR.
+         */
+        struct pci_res  resources[6];
+        unsigned int    IoNeeded;
+#endif
 };
 
 #define pci_dev_g(n) list_entry(n, struct pci_dev, global_list)
@@ -249,6 +292,17 @@ struct pci_bus {
 	struct class_device	class_dev;
 	struct bin_attribute	*legacy_io; /* legacy I/O for this bus */
 	struct bin_attribute	*legacy_mem; /* legacy mem */
+#ifdef CONFIG_PCI_SERVICES
+        /*
+         * Resources for the node
+         */
+        struct pci_res  resources[4];
+                                                                                
+        struct pci_res  *res_head_io;    /* PCI I/O space */
+        struct pci_res  *res_head_mem;   /* PCI memory space */
+        struct pci_res  *res_head_mem20; /* PCI 20-bit memory space */
+        struct pci_res  *res_head_mempf; /* PCI prefetch memory space */
+#endif
 };
 
 #define pci_bus_b(n)	list_entry(n, struct pci_bus, node)
@@ -291,6 +345,14 @@ struct pci_dynids {
 	struct list_head list;      /* for IDs added at runtime */
 	unsigned int use_driver_data:1; /* pci_driver->driver_data is used */
 };
+
+#ifdef CONFIG_PCI_SERVICES
+int pci_proc_detach_bus(struct pci_bus *bus);
+int pci_add_node(unsigned int number, unsigned int devfn);
+int pci_del_node(unsigned int number, unsigned int devfn);
+int pci_setup_device(struct pci_dev *dev);
+#endif
+                                                                                
 
 /* ---------------------------------------------------------------- */
 /** PCI Error Recovery System (PCI-ERS).  If a PCI device driver provides

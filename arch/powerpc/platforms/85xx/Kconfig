@@ -1,9 +1,13 @@
-menu "Platform support"
-	depends on PPC_85xx
-
 choice
 	prompt "Machine Type"
-	default MPC8540_ADS
+	depends on PPC_85xx
+	default MVME3100
+
+config MVME3100
+	bool "Motorola MVME3100"
+	select WANT_DEVICE_TREE
+	help
+	  This option enables support for the Motorola MVME3100 board
 
 config MPC8540_ADS
 	bool "Freescale MPC8540 ADS"
@@ -29,30 +33,40 @@ config MPC8540
 	bool
 	select PPC_UDBG_16550
 	select PPC_INDIRECT_PCI
-	default y if MPC8540_ADS || MPC85xx_CDS
+	default y if MPC8540_ADS || MPC85xx_CDS || MVME3100
 
 config MPC8560
 	bool
-	select PPC_INDIRECT_PCI
+	select CPM2
 	default y if MPC8560_ADS
 
-config PPC_INDIRECT_PCI_BE
-	bool
-	depends on PPC_85xx
-	default y
+config MPC85xx
+ 	bool
+ 	select PPC_UDBG_16550
+ 	select PPC_INDIRECT_PCI if PCI 
+ 	select PPC_INDIRECT_PCI_BE if PCI
+	select MPIC
+	select FSL_PCI if PCI
+ 	select SERIAL_8250_SHARE_IRQ if SERIAL_8250
+ 	default y if MPC8540_ADS || MPC85xx_CDS || MPC8560_ADS \
+ 		|| MPC85xx_MDS || MPC8544_DS || MVME3100
 
-config MPIC
-	bool
-	default y
+config MVME3100_ENABLE_DDR_ERRORS
+        bool "Enable DDR Error Reporting"
+        depends on MVME3100
+        default y
 
-config CPM2
-	bool
-	depends on MPC8560
-	default y
-	help
-	  The CPM2 (Communications Processor Module) is a coprocessor on
-	  embedded CPUs made by Motorola.  Selecting this option means that
-	  you wish to build a kernel for a machine with a CPM2 coprocessor
-	  on it.
+config MVME3100_ENABLE_L2_ERRORS
+        bool "Enable L2 Error Reporting"
+        depends on MVME3100
+        default y
 
-endmenu
+config MVME3100_ENABLE_PCI_ERRORS
+        bool "Enable PCI Error Reporting"
+        depends on MVME3100
+        default y
+
+config MVME3100_TICK_TIMERS
+        bool "Enable support for the Tick Timers on the MVME3100"
+        depends on MVME3100
+        default y

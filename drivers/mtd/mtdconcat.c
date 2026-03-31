@@ -173,7 +173,7 @@ concat_writev(struct mtd_info *mtd, const struct kvec *vecs,
 		total_len += vecs[i].iov_len;
 
 	/* Do not allow write past end of device */
-	if ((to + total_len) > mtd->size)
+	if ((to + total_len) > device_size(mtd))
 		return -EINVAL;
 
 	/* Check alignment */
@@ -520,12 +520,12 @@ static int concat_erase(struct mtd_info *mtd, struct erase_info *instr)
 	return 0;
 }
 
-static int concat_lock(struct mtd_info *mtd, loff_t ofs, size_t len)
+static int concat_lock(struct mtd_info *mtd, loff_t ofs, u_int64_t len)
 {
 	struct mtd_concat *concat = CONCAT(mtd);
 	int i, err = -EINVAL;
 
-	if ((len + ofs) > mtd->size)
+	if ((len + ofs) > device_size(mtd))
 		return -EINVAL;
 
 	for (i = 0; i < concat->num_subdev; i++) {
@@ -558,12 +558,12 @@ static int concat_lock(struct mtd_info *mtd, loff_t ofs, size_t len)
 	return err;
 }
 
-static int concat_unlock(struct mtd_info *mtd, loff_t ofs, size_t len)
+static int concat_unlock(struct mtd_info *mtd, loff_t ofs, u_int64_t len)
 {
 	struct mtd_concat *concat = CONCAT(mtd);
 	int i, err = 0;
 
-	if ((len + ofs) > mtd->size)
+	if ((len + ofs) > device_size(mtd))
 		return -EINVAL;
 
 	for (i = 0; i < concat->num_subdev; i++) {
@@ -639,7 +639,7 @@ static int concat_block_isbad(struct mtd_info *mtd, loff_t ofs)
 	if (!concat->subdev[0]->block_isbad)
 		return res;
 
-	if (ofs > mtd->size)
+	if (ofs > device_size(mtd))
 		return -EINVAL;
 
 	for (i = 0; i < concat->num_subdev; i++) {
@@ -665,7 +665,7 @@ static int concat_block_markbad(struct mtd_info *mtd, loff_t ofs)
 	if (!concat->subdev[0]->block_markbad)
 		return 0;
 
-	if (ofs > mtd->size)
+	if (ofs > device_size(mtd))
 		return -EINVAL;
 
 	for (i = 0; i < concat->num_subdev; i++) {

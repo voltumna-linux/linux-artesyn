@@ -69,13 +69,13 @@ static loff_t mtd_lseek (struct file *file, loff_t offset, int orig)
 		offset += file->f_pos;
 		break;
 	case SEEK_END:
-		offset += mtd->size;
+		offset += device_size(mtd);
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	if (offset >= 0 && offset <= mtd->size)
+	if (offset >= 0 && offset <= device_size(mtd))
 		return file->f_pos = offset;
 
 	return -EINVAL;
@@ -162,8 +162,8 @@ static ssize_t mtd_read(struct file *file, char __user *buf, size_t count,loff_t
 
 	DEBUG(MTD_DEBUG_LEVEL0,"MTD_read\n");
 
-	if (*ppos + count > mtd->size)
-		count = mtd->size - *ppos;
+	if (*ppos + count > device_size(mtd))
+		count = device_size(mtd) - *ppos;
 
 	if (!count)
 		return 0;
@@ -255,11 +255,11 @@ static ssize_t mtd_write(struct file *file, const char __user *buf, size_t count
 
 	DEBUG(MTD_DEBUG_LEVEL0,"MTD_write\n");
 
-	if (*ppos == mtd->size)
+	if (*ppos == device_size(mtd))
 		return -ENOSPC;
 
-	if (*ppos + count > mtd->size)
-		count = mtd->size - *ppos;
+	if (*ppos + count > device_size(mtd))
+		count = device_size(mtd) - *ppos;
 
 	if (!count)
 		return 0;
@@ -415,7 +415,7 @@ static int mtd_ioctl(struct inode *inode, struct file *file,
 	case MEMGETINFO:
 		info.type	= mtd->type;
 		info.flags	= mtd->flags;
-		info.size	= mtd->size;
+		info.size	= device_size(mtd);
 		info.erasesize	= mtd->erasesize;
 		info.writesize	= mtd->writesize;
 		info.oobsize	= mtd->oobsize;

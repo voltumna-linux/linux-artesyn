@@ -134,11 +134,14 @@ zimageinitrd-$(CONFIG_GEMINI)		:= zImage.initrd-STRIPELF
 
 # kconfig 'feature', only one of these will ever be 'y' at a time.
 # The rest will be unset.
-motorola := $(CONFIG_MVME5100)$(CONFIG_PRPMC750) \
-$(CONFIG_PRPMC800)$(CONFIG_LOPEC)$(CONFIG_PPLUS)
+motorola := $(CONFIG_MCPN765)$(CONFIG_MVME5100)$(CONFIG_PRPMC750) \
+$(CONFIG_PRPMC800)$(CONFIG_LOPEC)$(CONFIG_PPLUS)$(CONFIG_MVME6100) \
+$(CONFIG_MCP905)$(CONFIG_MVME3100)$(CONFIG_MVME5500)$(CONFIG_MCP805)$(CONFIG_MCP820)
 motorola := $(strip $(motorola))
 
       zimage-$(motorola)		:= zImage-PPLUS
+      extra.o-$(CONFIG_MVME6100)         := misc-mvme6100.o
+      extra.o-$(CONFIG_MCP905)           := misc-mcp905.o
 zimageinitrd-$(motorola)		:= zImage.initrd-PPLUS
          end-$(motorola)		:= pplus
 
@@ -169,7 +172,6 @@ zimageinitrd-$(CONFIG_LITE5200)		:= zImage.initrd-STRIPELF
          end-$(CONFIG_LITE5200)		:= lite5200
    cacheflag-$(CONFIG_LITE5200)		:= -include $(clear_L2_L3)
 
-
 # SMP images should have a '.smp' suffix.
          end-$(CONFIG_SMP)             := $(end-y).smp
 
@@ -190,6 +192,7 @@ boot-$(CONFIG_REDWOOD_5)	+= embed_config.o
 boot-$(CONFIG_REDWOOD_6)	+= embed_config.o
 boot-$(CONFIG_8xx)		+= embed_config.o
 boot-$(CONFIG_8260)		+= embed_config.o
+boot-$(CONFIG_MVME3100)         += embed_config.o
 boot-$(CONFIG_EP405)		+= embed_config.o
 boot-$(CONFIG_XILINX_ML300)	+= embed_config.o
 boot-$(CONFIG_XILINX_ML403)	+= embed_config.o
@@ -273,8 +276,8 @@ $(images)/zImage.initrd-TREE: $(obj)/zvmlinux.initrd $(MKTREE)
 
 $(images)/zImage-PPLUS: $(obj)/zvmlinux $(MKPREP) $(MKBUGBOOT)
 	$(MKPREP) -pbp $(obj)/zvmlinux $(images)/zImage.$(end-y)
-	$(MKBUGBOOT) $(obj)/zvmlinux $(images)/zImage.bugboot
+#	$(MKBUGBOOT) $(obj)/zvmlinux $(images)/zImage.bugboot
 
 $(images)/zImage.initrd-PPLUS: $(obj)/zvmlinux.initrd $(MKPREP) $(MKBUGBOOT)
 	$(MKPREP) -pbp $(obj)/zvmlinux.initrd $(images)/zImage.initrd.$(end-y)
-	$(MKBUGBOOT) $(obj)/zvmlinux.initrd $(images)/zImage.initrd.bugboot
+#	$(MKBUGBOOT) $(obj)/zvmlinux.initrd $(images)/zImage.initrd.bugboot

@@ -553,6 +553,15 @@ config BOOKE_WDT
 	  Please see Documentation/watchdog/watchdog-api.txt for
 	  more information.
 
+config MVME7100_WDT
+	tristate "MVME7100 Watchdog Timer"
+	depends on WATCHDOG && MVME7100
+	---help---
+	  If you have an MVME7100 board, say Y here, otherwise N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mvme7100_wdt.
+
 # PPC64 Architecture
 
 config WATCHDOG_RTAS

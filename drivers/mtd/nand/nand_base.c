@@ -81,6 +81,17 @@ static struct nand_ecclayout nand_oob_64 = {
 		 .length = 38}}
 };
 
+static struct nand_ecclayout nand_oob_128 = {
+	.eccbytes = 24,
+	.eccpos = {
+		   40, 41, 42, 43, 44, 45, 46, 47,
+		   48, 49, 50, 51, 52, 53, 54, 55,
+		   56, 57, 58, 59, 60, 61, 62, 63},
+	.oobfree = {
+		{.offset = 2,
+		 .length = 38}}
+};
+
 static int nand_get_device(struct nand_chip *chip, struct mtd_info *mtd,
 			   int new_state);
 
@@ -1092,7 +1103,7 @@ static int nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	int ret;
 
 	/* Do not allow reads past end of device */
-	if ((from + len) > mtd->size)
+	if ((from + len) > device_size(mtd))
 		return -EINVAL;
 	if (!len)
 		return 0;
@@ -1346,7 +1357,7 @@ static int nand_read_oob(struct mtd_info *mtd, loff_t from,
 	ops->retlen = 0;
 
 	/* Do not allow reads past end of device */
-	if (ops->datbuf && (from + ops->len) > mtd->size) {
+	if (ops->datbuf && (from + ops->len) > device_size(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0, "nand_read_oob: "
 		      "Attempt read beyond end of device\n");
 		return -EINVAL;
@@ -1711,7 +1722,7 @@ static int nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 	int ret;
 
 	/* Do not allow reads past end of device */
-	if ((to + len) > mtd->size)
+	if ((to + len) > device_size(mtd))
 		return -EINVAL;
 	if (!len)
 		return 0;
@@ -1805,7 +1816,7 @@ static int nand_write_oob(struct mtd_info *mtd, loff_t to,
 	ops->retlen = 0;
 
 	/* Do not allow writes past end of device */
-	if (ops->datbuf && (to + ops->len) > mtd->size) {
+	if (ops->datbuf && (to + ops->len) > device_size(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0, "nand_read_oob: "
 		      "Attempt read beyond end of device\n");
 		return -EINVAL;
@@ -1896,8 +1907,8 @@ int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 	int rewrite_bbt[NAND_MAX_CHIPS]={0};
 	unsigned int bbt_masked_page = 0xffffffff;
 
-	DEBUG(MTD_DEBUG_LEVEL3, "nand_erase: start = 0x%08x, len = %i\n",
-	      (unsigned int)instr->addr, (unsigned int)instr->len);
+	DEBUG(MTD_DEBUG_LEVEL3, "nand_erase: start = 0x%016llx, len = %i\n",
+	      instr->addr, (unsigned int)instr->len);
 
 	/* Start address must align on block boundary */
 	if (instr->addr & ((1 << chip->phys_erase_shift) - 1)) {
@@ -1913,13 +1924,14 @@ int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 	}
 
 	/* Do not allow erase past end of device */
-	if ((instr->len + instr->addr) > mtd->size) {
+	if ((instr->len + instr->addr) > device_size(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0, "nand_erase: "
 		      "Erase past end of device\n");
 		return -EINVAL;
 	}
 
-	instr->fail_addr = 0xffffffff;
+//	instr->fail_addr = 0xffffffff;
+	instr->fail_addr = (typeof(instr->fail_addr))(-1);
 
 	/* Grab the lock and see if the device is available */
 	nand_get_device(chip, mtd, FL_ERASING);
@@ -2084,7 +2096,7 @@ static void nand_sync(struct mtd_info *mtd)
 static int nand_block_isbad(struct mtd_info *mtd, loff_t offs)
 {
 	/* Check for invalid offset */
-	if (offs > mtd->size)
+	if (offs > device_size(mtd))
 		return -EINVAL;
 
 	return nand_block_checkbad(mtd, offs, 1, 0);
@@ -2357,6 +2369,18 @@ int nand_scan_ident(struct mtd_info *mtd, int maxchips)
 	chip->numchips = i;
 	mtd->size = i * chip->chipsize;
 
+	/* Because mtd->size is 32 bits, if the total 'device size'
+	 * is greater than 2GiB it will overflow mtd->size and signal
+	 * that we need to use the new MTD mio interface.
+	 */
+	if (mtd->size == 0) {
+		mtd->num_eraseblocks = (i * (__u64)(chip->chipsize)) >>
+					chip->phys_erase_shift;
+	} else {
+		/* Can't guarantee mtd was kzalloc'ed */
+		mtd->num_eraseblocks = 0;
+	}
+
 	return 0;
 }
 
@@ -2396,6 +2420,9 @@ int nand_scan_tail(struct mtd_info *mtd)
 			break;
 		case 64:
 			chip->ecc.layout = &nand_oob_64;
+			break;
+		case 128:
+			chip->ecc.layout = &nand_oob_128;
 			break;
 		default:
 			printk(KERN_WARNING "No oob scheme defined for "
@@ -2464,8 +2491,8 @@ int nand_scan_tail(struct mtd_info *mtd)
 		break;
 
 	case NAND_ECC_NONE:
-		printk(KERN_WARNING "NAND_ECC_NONE selected by board driver. "
-		       "This is not recommended !!\n");
+		printk(KERN_DEBUG "NAND_ECC_NONE selected by board driver. "
+		       "This is not recommended unless YAFFS does it!!\n");
 		chip->ecc.read_page = nand_read_page_raw;
 		chip->ecc.write_page = nand_write_page_raw;
 		chip->ecc.read_oob = nand_read_oob_std;
