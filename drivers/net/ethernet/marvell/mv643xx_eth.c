@@ -3161,10 +3161,10 @@ static int mv643xx_eth_probe(struct platform_device *pdev)
 	 */
 	mp->t_clk = 133000000;
 	mp->clk = devm_clk_get(&pdev->dev, NULL);
-	if (!IS_ERR(mp->clk)) {
+	if (!IS_ERR_OR_NULL(mp->clk)) {
 		clk_prepare_enable(mp->clk);
 		mp->t_clk = clk_get_rate(mp->clk);
-	} else if (!IS_ERR(mp->shared->clk)) {
+	} else if (!IS_ERR_OR_NULL(mp->shared->clk)) {
 		mp->t_clk = clk_get_rate(mp->shared->clk);
 	}
 
@@ -3263,7 +3263,7 @@ static int mv643xx_eth_probe(struct platform_device *pdev)
 	return 0;
 
 out:
-	if (!IS_ERR(mp->clk))
+	if (!IS_ERR_OR_NULL(mp->clk))
 		clk_disable_unprepare(mp->clk);
 	free_netdev(dev);
 
@@ -3280,7 +3280,7 @@ static void mv643xx_eth_remove(struct platform_device *pdev)
 		phy_disconnect(dev->phydev);
 	cancel_work_sync(&mp->tx_timeout_task);
 
-	if (!IS_ERR(mp->clk))
+	if (!IS_ERR_OR_NULL(mp->clk))
 		clk_disable_unprepare(mp->clk);
 
 	free_netdev(mp->dev);
