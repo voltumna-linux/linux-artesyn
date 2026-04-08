@@ -1,0 +1,426 @@
+/*
+ * Device Tree Source for Motorola MVME6100
+ *
+ * Copyright 2008 Alessio Igor Bogani
+ *
+ * This file is licensed under the terms of the GNU General Public License
+ * version 2.  This program is licensed "as is" without any warranty of any
+ * kind, whether express or implied.
+ *
+ * Based on prpmc2800.dts by Mark A. Greer <mgreer@mvista.com>
+ *
+ * Property values that are labeled as "Default" will be updated by the
+ * bootwrapper if it can determine the actual hardware configuration.
+ *
+ * Note: the Marvell mv64x60 device tree bindings used to live in
+ * Documentation/devicetree/bindings/marvell.txt but were removed upstream
+ * in v4.18 together with the mv64x60 hostbridge support.  This DTS uses the
+ * following compatibles, all referring to the original mv64x60 bindings:
+ *
+ *   marvell,mv64360                 - Discovery host bridge
+ *   marvell,mv64360-mpp             - Multi-Purpose Port pin mux
+ *   marvell,mv64360-gpp             - General Purpose Port (GPIO)
+ *   marvell,mv64360-pic             - integrated interrupt controller
+ *   marvell,mv64360-pci             - PCI host bridge
+ *   marvell,mv64360-eth-group       - Gigabit Ethernet block
+ *   marvell,mv64360-eth             - Gigabit Ethernet port
+ *   marvell,mv64360-mdio            - MDIO bus
+ *   marvell,mv64360-i2c             - I2C controller
+ *   marvell,mv64360-wdt             - watchdog timer
+ *   motorola,mvme6100-board-ctl     - MVME6100 board control registers
+ */
+
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	model = "MVME6100";
+	compatible = "motorola,MVME6100";
+	coherency-off;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		PowerPC,7447 {
+			device_type = "cpu";
+			reg = <0>;
+			clock-frequency = <733333333>;	/* Default */
+			bus-frequency = <133333333>;
+			timebase-frequency = <33333333>;
+			i-cache-line-size = <32>;
+			d-cache-line-size = <32>;
+			i-cache-size = <32768>;
+			d-cache-size = <32768>;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x20000000>;		/* Default (512MB) */
+	};
+
+	system-controller@f1000000 {	/* Marvell Discovery mv64360 */
+		#address-cells = <1>;
+		#size-cells = <1>;
+		device_type = "soc";
+		model = "mv64360";
+		compatible = "marvell,mv64360";
+		clock-frequency = <133333333>;
+		reg = <0xf1000000 0x10000>;
+		virtual-reg = <0xf1000000>;
+		ranges = <0xf0000000 0xf0000000 0x00800000  /* PCI 0 I/O */
+			  0xf0800000 0xf0800000 0x00800000  /* PCI 1 I/O */
+			  0xc0000000 0xc0000000 0x20000000  /* PCI 0 MEM */
+			  0xe0000000 0xe0000000 0x10000000  /* PCI 1 MEM */
+			  0xf4000000 0xf4000000 0x04000000  /* Flash Bank A */
+			  0xf8000000 0xf8000000 0x04000000  /* Flash Bank B */
+			  0x00000000 0xf1000000 0x00010000  /* Bridge regs */
+			  0xf1100000 0xf1100000 0x00022000  /* Device bus regs + TODC + UARTs */
+			  0xfefc0000 0xfefc0000 0x00040000>;/* Internal SRAM */
+
+		/* Flash Bank A - 64MB */
+		flash@f4000000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "cfi-flash";
+			reg = <0xf4000000 0x04000000>;
+			bank-width = <4>;
+
+			partition@0 {
+				label = "Linux Kernel + INITRD";
+				reg = <0x00000000 0x01400000>;
+			};
+
+			partition@1400000 {
+				label = "Linux JFFS2 Filesystem";
+				reg = <0x01400000 0x02b00000>;
+			};
+
+			partition@3f00000 {
+				label = "Bootloader Flash 0";
+				reg = <0x03f00000 0x00100000>;
+				read-only;
+			};
+		};
+
+		/* Flash Bank B - 64MB */
+		flash@f8000000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "cfi-flash";
+			reg = <0xf8000000 0x04000000>;
+			bank-width = <4>;
+
+			partition@0 {
+				label = "Linux JFFS2 Filesystem";
+				reg = <0x00000000 0x03f00000>;
+			};
+
+			partition@3f00000 {
+				label = "Bootloader Flash 1";
+				reg = <0x03f00000 0x00100000>;
+				read-only;
+			};
+		};
+
+		/* NS16550 UARTs on device module */
+		serial@f1120000 {
+			device_type = "serial";
+			compatible = "ns16550";
+			reg = <0xf1120000 0x8>;
+			clock-frequency = <1843200>;
+			current-speed = <9600>;
+			interrupts = <64>;	/* GPP 0 */
+			interrupt-parent = <&PIC>;
+		};
+
+		serial@f1121000 {
+			device_type = "serial";
+			compatible = "ns16550";
+			reg = <0xf1121000 0x8>;
+			clock-frequency = <1843200>;
+			current-speed = <9600>;
+			interrupts = <64>;	/* GPP 0 */
+			interrupt-parent = <&PIC>;
+		};
+
+		/* Board control registers */
+		board-regs@f1100000 {
+			compatible = "motorola,mvme6100-board-ctl";
+			reg = <0xf1100000 0x10>;
+		};
+
+		/* MDIO bus with 2 PHYs */
+		mdio {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			device_type = "mdio";
+			compatible = "marvell,mv64360-mdio";
+			PHY0: ethernet-phy@1 {
+				device_type = "ethernet-phy";
+				reg = <1>;
+				interrupts = <76>;	/* GPP 12 */
+				interrupt-parent = <&PIC>;
+			};
+			PHY1: ethernet-phy@2 {
+				device_type = "ethernet-phy";
+				reg = <2>;
+				interrupts = <76>;	/* GPP 12 */
+				interrupt-parent = <&PIC>;
+			};
+		};
+
+		/* 2 Gigabit Ethernet ports */
+		ethernet-group@2000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "marvell,mv64360-eth-group";
+			reg = <0x2000 0x2000>;
+			ethernet@0 {
+				device_type = "network";
+				compatible = "marvell,mv64360-eth";
+				reg = <0>;
+				interrupts = <32>;
+				interrupt-parent = <&PIC>;
+				phy = <&PHY0>;
+				local-mac-address = [ 00 00 00 00 00 00 ];
+			};
+			ethernet@1 {
+				device_type = "network";
+				compatible = "marvell,mv64360-eth";
+				reg = <1>;
+				interrupts = <33>;
+				interrupt-parent = <&PIC>;
+				phy = <&PHY1>;
+				local-mac-address = [ 00 00 00 00 00 00 ];
+			};
+		};
+
+		SDMA0: sdma@4000 {
+			compatible = "marvell,mv64360-sdma";
+			reg = <0x4000 0xc18>;
+			virtual-reg = <0xf1004000>;
+			interrupts = <36>;
+			interrupt-parent = <&PIC>;
+		};
+
+		SDMA1: sdma@6000 {
+			compatible = "marvell,mv64360-sdma";
+			reg = <0x6000 0xc18>;
+			virtual-reg = <0xf1006000>;
+			interrupts = <38>;
+			interrupt-parent = <&PIC>;
+		};
+
+		BRG0: brg@b200 {
+			compatible = "marvell,mv64360-brg";
+			reg = <0xb200 0x8>;
+			clock-src = <8>;
+			clock-frequency = <133333333>;
+			current-speed = <9600>;
+		};
+
+		BRG1: brg@b208 {
+			compatible = "marvell,mv64360-brg";
+			reg = <0xb208 0x8>;
+			clock-src = <8>;
+			clock-frequency = <133333333>;
+			current-speed = <9600>;
+		};
+
+		CUNIT: cunit@f200 {
+			reg = <0xf200 0x200>;
+		};
+
+		MPSCROUTING: mpscrouting@b400 {
+			reg = <0xb400 0xc>;
+		};
+
+		MPSCINTR: mpscintr@b800 {
+			reg = <0xb800 0x100>;
+			virtual-reg = <0xf100b800>;
+		};
+
+		MPSC0: mpsc@8000 {
+			device_type = "serial";
+			compatible = "marvell,mv64360-mpsc";
+			reg = <0x8000 0x38>;
+			virtual-reg = <0xf1008000>;
+			sdma = <&SDMA0>;
+			brg = <&BRG0>;
+			cunit = <&CUNIT>;
+			mpscrouting = <&MPSCROUTING>;
+			mpscintr = <&MPSCINTR>;
+			cell-index = <0>;
+			interrupts = <40>;
+			interrupt-parent = <&PIC>;
+		};
+
+		MPSC1: mpsc@9000 {
+			device_type = "serial";
+			compatible = "marvell,mv64360-mpsc";
+			reg = <0x9000 0x38>;
+			virtual-reg = <0xf1009000>;
+			sdma = <&SDMA1>;
+			brg = <&BRG1>;
+			cunit = <&CUNIT>;
+			mpscrouting = <&MPSCROUTING>;
+			mpscintr = <&MPSCINTR>;
+			cell-index = <1>;
+			interrupts = <42>;
+			interrupt-parent = <&PIC>;
+		};
+
+		wdt@b410 {		/* watchdog timer */
+			compatible = "marvell,mv64360-wdt";
+			reg = <0xb410 0x8>;
+		};
+
+		i2c@c000 {
+			device_type = "i2c";
+			compatible = "marvell,mv64360-i2c";
+			reg = <0xc000 0x20>;
+			virtual-reg = <0xf100c000>;
+			interrupts = <37>;
+			interrupt-parent = <&PIC>;
+		};
+
+		PIC: pic {
+			#interrupt-cells = <1>;
+			#address-cells = <0>;
+			compatible = "marvell,mv64360-pic";
+			reg = <0x0 0x88>;
+			interrupt-controller;
+		};
+
+		i8259: i8259 {
+			interrupt-controller;
+			device_type = "interrupt-controller";
+			#interrupt-cells = <2>;
+			#address-cells = <0>;
+			compatible = "chrp,iic";
+			interrupts = <69>;	/* GPP 5 */
+			interrupt-parent = <&PIC>;
+		};
+
+		mpp@f000 {
+			compatible = "marvell,mv64360-mpp";
+			reg = <0xf000 0x10>;
+		};
+
+		gpp@f100 {
+			compatible = "marvell,mv64360-gpp";
+			reg = <0xf100 0x20>;
+		};
+
+		/* PCI Bus 0 */
+		pci@80000000 {
+			#address-cells = <3>;
+			#size-cells = <2>;
+			#interrupt-cells = <1>;
+			device_type = "pci";
+			compatible = "marvell,mv64360-pci";
+			reg = <0xcf8 0x8>;
+			ranges = <0x01000000 0x0 0x00000000
+					0xf0000000 0x0 0x00800000
+				  0x02000000 0x0 0xc0000000
+					0xc0000000 0x0 0x20000000>;
+			bus-range = <0 255>;
+			clock-frequency = <66000000>;
+			interrupt-pci-iack = <0xc34>;
+			interrupt-parent = <&PIC>;
+			interrupt-map-mask = <0xf800 0x0 0x0 0x7>;
+			interrupt-map = <
+				/* IDSEL 5 - VME Bridge ASIC */
+				0x2800 0 0 1 &PIC 84
+				0x2800 0 0 2 &PIC 85
+				0x2800 0 0 3 &PIC 86
+				0x2800 0 0 4 &PIC 87
+
+				/* IDSEL 6 - PMC Span Bridge */
+				0x3000 0 0 1 &PIC 86
+				0x3000 0 0 2 &PIC 87
+				0x3000 0 0 3 &PIC 84
+				0x3000 0 0 4 &PIC 85
+			>;
+		};
+
+		/* PCI Bus 1 */
+		pci@e0000000 {
+			#address-cells = <3>;
+			#size-cells = <2>;
+			#interrupt-cells = <1>;
+			device_type = "pci";
+			compatible = "marvell,mv64360-pci";
+			reg = <0xc78 0x8>;
+			ranges = <0x01000000 0x0 0x00800000
+					0xf0800000 0x0 0x00800000
+				  0x02000000 0x0 0xe0000000
+					0xe0000000 0x0 0x10000000>;
+			bus-range = <0 255>;
+			clock-frequency = <33000000>;
+			interrupt-pci-iack = <0xc30>;
+			interrupt-parent = <&PIC>;
+			interrupt-map-mask = <0xf800 0x0 0x0 0x7>;
+			interrupt-map = <
+				/* IDSEL 4 - PMC Slot 0 */
+				0x2000 0 0 1 &PIC 80
+				0x2000 0 0 2 &PIC 81
+				0x2000 0 0 3 &PIC 82
+				0x2000 0 0 4 &PIC 83
+
+				/* IDSEL 5 - PMC Slot 0, Secondary, IPMC */
+				0x2800 0 0 1 &PIC 81
+				0x2800 0 0 2 &PIC 82
+				0x2800 0 0 3 &PIC 83
+				0x2800 0 0 4 &PIC 80
+
+				/* IDSEL 6 - PMC Slot 1 */
+				0x3000 0 0 1 &PIC 82
+				0x3000 0 0 2 &PIC 83
+				0x3000 0 0 3 &PIC 80
+				0x3000 0 0 4 &PIC 81
+
+				/* IDSEL 7 - PMC Slot 1, Secondary */
+				0x3800 0 0 1 &PIC 83
+				0x3800 0 0 2 &PIC 80
+				0x3800 0 0 3 &PIC 81
+				0x3800 0 0 4 &PIC 82
+			>;
+		};
+
+		cpu-error@0070 {
+			compatible = "marvell,mv64360-cpu-error";
+			reg = <0x70 0x10 0x128 0x28>;
+			interrupts = <3>;
+			interrupt-parent = <&PIC>;
+		};
+
+		sram-ctrl@0380 {
+			compatible = "marvell,mv64360-sram-ctrl";
+			reg = <0x380 0x80>;
+			interrupts = <13>;
+			interrupt-parent = <&PIC>;
+		};
+
+		pci-error@1d40 {
+			compatible = "marvell,mv64360-pci-error";
+			reg = <0x1d40 0x40 0xc28 0x4>;
+			interrupts = <12>;
+			interrupt-parent = <&PIC>;
+		};
+
+		mem-ctrl@1400 {
+			compatible = "marvell,mv64360-mem-ctrl";
+			reg = <0x1400 0x60>;
+			interrupts = <17>;
+			interrupt-parent = <&PIC>;
+		};
+	};
+
+	chosen {
+		stdout-path = "/system-controller@f1000000/serial@f1120000";
+	};
+};

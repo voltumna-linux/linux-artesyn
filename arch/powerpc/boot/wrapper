@@ -375,6 +375,11 @@ mvme5100)
     platformo="$object/fixed-head.o $object/mvme5100.o"
     binary=y
     ;;
+mvme6100)
+    platformo="$object/motload-head.o $object/mvme6100.o $object/mv64x60.o"
+    link_address='0x4000000'
+    binary=y
+    ;;
 mvme7100)
     platformo="$object/motload-head.o $object/mvme7100.o"
     link_address='0x4000000'
