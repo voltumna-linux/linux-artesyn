@@ -61,6 +61,20 @@ config MVME5100
 	  This option enables support for the Motorola (now Emerson) MVME5100
 	  board.
 
+config MVME6100
+	bool "Motorola MVME6100"
+	depends on EMBEDDED6xx
+	select MV64X60
+	select FORCE_PCI
+	select NOT_COHERENT_CACHE
+	select PPC_I8259
+	select PPC_NATIVE
+	select PPC_UDBG_16550
+	help
+	  This option enables support for the Motorola MVME6100 single-board
+	  computer, based on the MPC7447A processor with the Marvell MV64360
+	  Discovery host bridge.
+
 config TSI108_BRIDGE
 	bool
 	select FORCE_PCI
