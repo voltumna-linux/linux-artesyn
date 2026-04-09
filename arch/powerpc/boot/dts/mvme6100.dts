@@ -295,16 +295,6 @@
 			interrupt-controller;
 		};
 
-		i8259: i8259 {
-			interrupt-controller;
-			device_type = "interrupt-controller";
-			#interrupt-cells = <2>;
-			#address-cells = <0>;
-			compatible = "chrp,iic";
-			interrupts = <69>;	/* GPP 5 */
-			interrupt-parent = <&PIC>;
-		};
-
 		mpp@f000 {
 			compatible = "marvell,mv64360-mpp";
 			reg = <0xf000 0x10>;
