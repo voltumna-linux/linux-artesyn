@@ -20,7 +20,6 @@
 #include <asm/prom.h>
 #include <asm/time.h>
 #include <asm/udbg.h>
-#include <asm/i8259.h>
 
 #include <mm/mmu_decl.h>
 
@@ -123,28 +122,8 @@ static void __init mvme6100_setup_arch(void)
 	pr_info("Motorola MVME6100\n");
 }
 
-/*
- * i8259 cascade via chained handler.
- *
- * The Winbond 83C553 ISA bridge on PCI Bus 1 provides an i8259
- * interrupt controller cascaded through GPP pin 5 of the MV64360.
- */
-static void mvme6100_i8259_cascade(struct irq_desc *desc)
-{
-	struct irq_chip *chip = irq_desc_get_chip(desc);
-	unsigned int cascade_irq;
-
-	cascade_irq = i8259_irq();
-	if (cascade_irq)
-		generic_handle_irq(cascade_irq);
-
-	chip->irq_eoi(&desc->irq_data);
-}
-
 static void __init mvme6100_init_irq(void)
 {
-	struct device_node *np;
-	unsigned int cascade_virq;
 	u32 temp;
 
 	/* Initialize the MV64360 interrupt controller */
@@ -163,7 +142,7 @@ static void __init mvme6100_init_irq(void)
 	/* MPP 16-23: configure as GPIO */
 	out_le32(mv64x60_mpp_reg_base + MV64x60_MPP_CNTL_2, 0);
 
-	/* GPP 5: active high (i8259 cascade) */
+	/* GPP 5: active high (legacy IPMC i8259 cascade, unused on base board) */
 	temp = in_le32(mv64x60_gpp_reg_base + MV64x60_GPP_LEVEL_CNTL);
 	temp &= ~GPP5;
 	/* GPP 7, 16-23: active low (PCI interrupts) */
@@ -176,29 +155,13 @@ static void __init mvme6100_init_irq(void)
 	out_le32(mv64x60_gpp_reg_base + MV64x60_GPP_IO_CNTL, temp);
 
 	/*
-	 * Initialize the i8259 cascade.
-	 *
-	 * Map the cascade IRQ BEFORE i8259_init() so that irq_find_host()
-	 * returns the MV64360 PIC host (the i8259 legacy host with
-	 * of_node=NULL would match all nodes and shadow the PIC host).
+	 * Note: the legacy arch/ppc BSP unconditionally initialised an i8259
+	 * (cascaded via GPP5) assuming a Winbond 83C553 ISA bridge provided
+	 * by an optional IPMC module. The base MVME6100 has no ISA bridge
+	 * and no i8259, so we do not touch it here. If IPMC support is ever
+	 * needed, it must be added conditionally (probe the Winbond on PCI
+	 * bus 1 at subsys_initcall time, after PCI enumeration).
 	 */
-	np = of_find_compatible_node(NULL, NULL, "chrp,iic");
-	if (!np) {
-		pr_err("MVME6100: i8259 node not found in DTS\n");
-		return;
-	}
-
-	cascade_virq = irq_of_parse_and_map(np, 0);
-	if (!cascade_virq) {
-		pr_err("MVME6100: failed to map i8259 cascade IRQ\n");
-		of_node_put(np);
-		return;
-	}
-
-	i8259_init(np, 0);
-	of_node_put(np);
-
-	irq_set_chained_handler(cascade_virq, mvme6100_i8259_cascade);
 }
 
 static void __noreturn mvme6100_restart(char *cmd)
