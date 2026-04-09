@@ -381,14 +381,14 @@
 			>;
 		};
 
-		cpu-error@0070 {
+		cpu-error@70 {
 			compatible = "marvell,mv64360-cpu-error";
 			reg = <0x70 0x10 0x128 0x28>;
 			interrupts = <3>;
 			interrupt-parent = <&PIC>;
 		};
 
-		sram-ctrl@0380 {
+		sram-ctrl@380 {
 			compatible = "marvell,mv64360-sram-ctrl";
 			reg = <0x380 0x80>;
 			interrupts = <13>;
