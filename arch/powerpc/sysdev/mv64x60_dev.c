@@ -37,6 +37,8 @@ static struct platform_device * __init mv64x60_eth_register_shared_pdev(
 	struct resource r[2];
 	int err;
 
+	memset(r, 0, sizeof(r));
+
 	err = of_address_to_resource(np, 0, &r[0]);
 	if (err)
 		return ERR_PTR(err);
