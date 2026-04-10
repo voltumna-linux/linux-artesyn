@@ -254,7 +254,7 @@ void *dma_direct_alloc(struct device *dev, size_t size,
 	    dma_direct_use_pool(dev, gfp))
 		return dma_direct_alloc_from_pool(dev, size, dma_handle, gfp);
 
-	/* we always manually zero the memory once we are done */
+	/* we manually zero the memory once we are done (see below) */
 	page = __dma_direct_alloc_pages(dev, size, gfp & ~__GFP_ZERO, true);
 	if (!page)
 		return NULL;
@@ -275,6 +275,18 @@ void *dma_direct_alloc(struct device *dev, size_t size,
 		if (force_dma_unencrypted(dev))
 			prot = pgprot_decrypted(prot);
 
+		/*
+		 * If the page has a kernel linear-map address, zero it
+		 * before the uncached remap.  Architectures whose memset
+		 * relies on cache-management instructions (e.g. PowerPC
+		 * dcbz) fault on uncached mappings, so the zeroing must
+		 * happen while the memory is still cacheable.  Highmem
+		 * pages have no linear-map alias, so they are zeroed
+		 * after the remap instead.
+		 */
+		if (!PageHighMem(page))
+			memset(page_address(page), 0, size);
+
 		/* remove any dirty cache lines on the kernel alias */
 		arch_dma_prep_coherent(page, size);
 
@@ -283,13 +295,15 @@ void *dma_direct_alloc(struct device *dev, size_t size,
 				__builtin_return_address(0));
 		if (!ret)
 			goto out_free_pages;
+
+		if (PageHighMem(page))
+			memset(ret, 0, size);
 	} else {
 		ret = page_address(page);
 		if (dma_set_decrypted(dev, ret, size))
 			goto out_leak_pages;
+		memset(ret, 0, size);
 	}
-
-	memset(ret, 0, size);
 
 	if (set_uncached) {
 		arch_dma_prep_coherent(page, size);
