@@ -745,6 +745,10 @@ txq_put_data_tso(struct net_device *dev, struct tx_queue *txq,
 		/* Copy unaligned small data fragment to TSO header data area */
 		memcpy(txq->tso_hdrs + tx_index * TSO_HEADER_SIZE,
 		       data, length);
+		dma_sync_single_range_for_device(dev->dev.parent,
+						 txq->tso_hdrs_dma,
+						 tx_index * TSO_HEADER_SIZE,
+						 length, DMA_TO_DEVICE);
 		desc->buf_ptr = txq->tso_hdrs_dma
 			+ tx_index * TSO_HEADER_SIZE;
 	} else {
@@ -848,6 +852,11 @@ static int txq_submit_tso(struct tx_queue *txq, struct sk_buff *skb,
 		/* prepare packet headers: MAC + IP + TCP */
 		hdr = txq->tso_hdrs + txq->tx_curr_desc * TSO_HEADER_SIZE;
 		tso_build_hdr(skb, hdr, &tso, data_left, total_len == 0);
+		dma_sync_single_range_for_device(mp->dev->dev.parent,
+						 txq->tso_hdrs_dma,
+						 txq->tx_curr_desc * TSO_HEADER_SIZE,
+						 TSO_HEADER_SIZE,
+						 DMA_TO_DEVICE);
 		txq_put_hdr_tso(skb, txq, data_left, &first_cmd_sts,
 				first_desc);
 
@@ -2103,11 +2112,27 @@ static int txq_init(struct mv643xx_eth_private *mp, int index)
 		goto err_free_desc_area;
 	}
 
-	/* Allocate DMA buffers for TSO MAC/IP/TCP headers */
-	txq->tso_hdrs = dma_alloc_coherent(mp->dev->dev.parent,
-					   txq->tx_ring_size * TSO_HEADER_SIZE,
-					   &txq->tso_hdrs_dma, GFP_KERNEL);
+	/*
+	 * Allocate DMA buffers for TSO MAC/IP/TCP headers.
+	 *
+	 * Use streaming DMA (kmalloc + dma_map_single) instead of
+	 * dma_alloc_coherent because on PowerPC coherent allocations
+	 * return uncached mappings and memcpy uses dcbz which faults
+	 * on such mappings.  tso_build_hdr() writes headers via
+	 * memcpy, so the buffer must remain cacheable.
+	 */
+	txq->tso_hdrs = kmalloc(txq->tx_ring_size * TSO_HEADER_SIZE,
+				GFP_KERNEL);
 	if (txq->tso_hdrs == NULL) {
+		ret = -ENOMEM;
+		goto err_free_desc_mapping;
+	}
+	txq->tso_hdrs_dma = dma_map_single(mp->dev->dev.parent, txq->tso_hdrs,
+					    txq->tx_ring_size * TSO_HEADER_SIZE,
+					    DMA_TO_DEVICE);
+	if (dma_mapping_error(mp->dev->dev.parent, txq->tso_hdrs_dma)) {
+		kfree(txq->tso_hdrs);
+		txq->tso_hdrs = NULL;
 		ret = -ENOMEM;
 		goto err_free_desc_mapping;
 	}
@@ -2143,10 +2168,12 @@ static void txq_deinit(struct tx_queue *txq)
 				  txq->tx_desc_area, txq->tx_desc_dma);
 	kfree(txq->tx_desc_mapping);
 
-	if (txq->tso_hdrs)
-		dma_free_coherent(mp->dev->dev.parent,
-				  txq->tx_ring_size * TSO_HEADER_SIZE,
-				  txq->tso_hdrs, txq->tso_hdrs_dma);
+	if (txq->tso_hdrs) {
+		dma_unmap_single(mp->dev->dev.parent, txq->tso_hdrs_dma,
+				 txq->tx_ring_size * TSO_HEADER_SIZE,
+				 DMA_TO_DEVICE);
+		kfree(txq->tso_hdrs);
+	}
 }
 
 
