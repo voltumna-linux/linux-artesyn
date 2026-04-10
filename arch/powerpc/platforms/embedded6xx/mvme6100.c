@@ -117,10 +117,6 @@ static void __init mvme6100_setup_arch(void)
 		}
 	}
 
-#ifdef CONFIG_PCI
-	mv64x60_pci_init();
-#endif
-
 	pr_info("Motorola MVME6100\n");
 }
 
@@ -229,6 +225,7 @@ define_machine(mvme6100) {
 	.name			= "MVME6100",
 	.probe			= mvme6100_probe,
 	.setup_arch		= mvme6100_setup_arch,
+	.discover_phbs		= mv64x60_pci_init,
 	.show_cpuinfo		= mvme6100_show_cpuinfo,
 	.init_IRQ		= mvme6100_init_irq,
 	.get_irq		= mv64x60_get_irq,
