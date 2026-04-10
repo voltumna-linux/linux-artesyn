@@ -1967,7 +1967,15 @@ static int rxq_init(struct mv643xx_eth_private *mp, int index)
 			   "can't allocate rx ring (%d bytes)\n", size);
 		goto out;
 	}
-	memset(rxq->rx_desc_area, 0, size);
+
+	/*
+	 * dma_alloc_coherent() returns zeroed memory, but the SRAM
+	 * ioremap path does not.  Use memset_io() for the latter
+	 * because plain memset() may use dcbz on PowerPC which faults
+	 * on uncached mappings.
+	 */
+	if (index == 0 && size <= mp->rx_desc_sram_size)
+		memset_io(rxq->rx_desc_area, 0, size);
 
 	rxq->rx_desc_area_size = size;
 	rxq->rx_skb = kcalloc(rxq->rx_ring_size, sizeof(*rxq->rx_skb),
@@ -2071,7 +2079,9 @@ static int txq_init(struct mv643xx_eth_private *mp, int index)
 			   "can't allocate tx ring (%d bytes)\n", size);
 		return -ENOMEM;
 	}
-	memset(txq->tx_desc_area, 0, size);
+
+	if (index == 0 && size <= mp->tx_desc_sram_size)
+		memset_io(txq->tx_desc_area, 0, size);
 
 	txq->tx_desc_area_size = size;
 
