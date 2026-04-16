@@ -66,6 +66,7 @@ static int m48t59_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	struct m48t59_private *m48t59 = dev_get_drvdata(dev);
 	unsigned long flags;
 	u8 val;
+	int century;
 
 	spin_lock_irqsave(&m48t59->lock, flags);
 	/* Issue the READ command */
@@ -81,6 +82,11 @@ static int m48t59_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	    (val & M48T59_WDAY_CEB) && (val & M48T59_WDAY_CB)) {
 		dev_dbg(dev, "Century bit is enabled\n");
 		tm->tm_year += 100;	/* one century */
+	}
+
+	if (pdata->type == M48T59RTC_TYPE_M48T37) {
+		century = bcd2bin(M48T59_READ(M48T37_CENTURY)) * 100;
+		tm->tm_year = tm->tm_year + century - 1900;
 	}
 
 	tm->tm_wday	= bcd2bin(val & 0x07);
@@ -127,6 +133,11 @@ static int m48t59_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		val = (M48T59_WDAY_CEB | M48T59_WDAY_CB);
 	val |= (bin2bcd(tm->tm_wday) & 0x07);
 	M48T59_WRITE(val, M48T59_WDAY);
+
+	if (pdata->type == M48T59RTC_TYPE_M48T37) {
+		val = bin2bcd((tm->tm_year + 1900) / 100);
+		M48T59_WRITE(val, M48T37_CENTURY);
+	}
 
 	/* Clear the WRITE bit */
 	M48T59_CLEAR_BITS(M48T59_CNTL_WRITE, M48T59_CNTL);
@@ -431,6 +442,10 @@ static int m48t59_rtc_probe(struct platform_device *pdev)
 		clear_bit(RTC_FEATURE_ALARM, m48t59->rtc->features);
 		pdata->offset = 0x1ff0;
 		break;
+	case M48T59RTC_TYPE_M48T37:
+		clear_bit(RTC_FEATURE_UPDATE_INTERRUPT, m48t59->rtc->features);
+		pdata->offset = 0x7ff0;
+		break;
 	default:
 		dev_err(&pdev->dev, "Unknown RTC type\n");
 		return -ENODEV;
@@ -468,5 +483,5 @@ static struct platform_driver m48t59_rtc_driver = {
 module_platform_driver(m48t59_rtc_driver);
 
 MODULE_AUTHOR("Mark Zhan <rongkai.zhan@windriver.com>");
-MODULE_DESCRIPTION("M48T59/M48T02/M48T08 RTC driver");
+MODULE_DESCRIPTION("M48T59/M48T37/M48T02/M48T08 RTC driver");
 MODULE_LICENSE("GPL");
