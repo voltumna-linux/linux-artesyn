@@ -1242,7 +1242,7 @@ next_pdu:
 	}
 
 	memalloc_noreclaim_restore(noreclaim_flag);
-	module_put_and_exit(0);
+	module_put_and_kthread_exit(0);
 }
 
 /* extract the host portion of the UNC string */
@@ -1913,6 +1913,11 @@ cifs_parse_mount_options(const char *mountdata, const char *devname,
 			if (get_option_ul(args, &option)) {
 				cifs_dbg(VFS, "%s: Invalid echo interval value\n",
 					 __func__);
+				goto cifs_parse_mount_err;
+			}
+			if (option < SMB_ECHO_INTERVAL_MIN ||
+			    option > SMB_ECHO_INTERVAL_MAX) {
+				cifs_dbg(VFS, "echo interval is out of bounds\n");
 				goto cifs_parse_mount_err;
 			}
 			vol->echo_interval = option;
@@ -2770,7 +2775,7 @@ cifs_setup_ipc(struct cifs_ses *ses, struct smb_vol *volume_info)
 		goto out;
 	}
 
-	cifs_dbg(FYI, "IPC tcon rc = %d ipc tid = %d\n", rc, tcon->tid);
+	cifs_dbg(FYI, "IPC tcon rc=%d ipc tid=0x%x\n", rc, tcon->tid);
 
 	ses->tcon_ipc = tcon;
 out:
@@ -5157,6 +5162,7 @@ cifs_construct_tcon(struct cifs_sb_info *cifs_sb, kuid_t fsuid)
 
 out:
 	kfree(vol_info->username);
+	kfree(vol_info->domainname);
 	kfree_sensitive(vol_info->password);
 	kfree(vol_info);
 

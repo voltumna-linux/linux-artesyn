@@ -1618,6 +1618,15 @@ static const char *rawdata_get_link_base(struct dentry *dentry,
 
 	label = aa_get_label_rcu(&proxy->label);
 	profile = labels_profile(label);
+
+	/* rawdata can be null when aa_g_export_binary is unset during
+	 * runtime and a profile is replaced
+	 */
+	if (!profile->rawdata) {
+		aa_put_label(label);
+		return ERR_PTR(-ENOENT);
+	}
+
 	depth = profile_depth(profile);
 	target = gen_symlink_name(depth, profile->rawdata->name, name);
 	aa_put_label(label);
@@ -1679,6 +1688,10 @@ int __aafs_profile_mkdir(struct aa_profile *profile, struct dentry *parent)
 		struct aa_profile *p;
 		p = aa_deref_parent(profile);
 		dent = prof_dir(p);
+		if (!dent) {
+			error = -ENOENT;
+			goto fail2;
+		}
 		/* adding to parent that previously didn't have children */
 		dent = aafs_create_dir("profiles", dent);
 		if (IS_ERR(dent))
