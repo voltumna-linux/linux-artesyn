@@ -17,9 +17,11 @@
 #include <linux/of_platform.h>
 #include <linux/rtc/m48t59.h>
 
+#include <asm/cache.h>
 #include <asm/i8259.h>
 #include <asm/pci-bridge.h>
 #include <asm/mpic.h>
+#include <asm/reg.h>
 #include <mm/mmu_decl.h>
 #include <asm/udbg.h>
 
@@ -287,9 +289,25 @@ static int __init probe_of_platform_devices(void)
 
 machine_device_initcall(mvme5100, probe_of_platform_devices);
 
+/*
+ * The MPC7410 has a backside L2 cache (external SRAM, up to 2 MB) controlled
+ * via the L2CR SPR. Boot firmware is expected to have programmed L2CR with
+ * the correct SRAM type/ratio, but may leave L2E cleared. Force-enable L2
+ * here so the kernel does not run with L1 only if the bootloader omitted it.
+ */
+static int __init mvme5100_probe(void)
+{
+	if (!of_machine_is_compatible("MVME5100"))
+		return 0;
+
+	_set_L2CR(_get_L2CR() | L2CR_L2E);
+
+	return 1;
+}
+
 define_machine(mvme5100) {
 	.name			= "MVME5100",
-	.compatible		= "MVME5100",
+	.probe			= mvme5100_probe,
 	.setup_arch		= mvme5100_setup_arch,
 	.discover_phbs		= mvme5100_setup_pci,
 	.init_IRQ		= mvme5100_pic_init,
