@@ -15,10 +15,12 @@
 #include <linux/of_platform.h>
 #include <linux/rtc/m48t59.h>
 
+#include <asm/cache.h>
 #include <asm/i8259.h>
 #include <asm/pci-bridge.h>
 #include <asm/mpic.h>
 #include <asm/prom.h>
+#include <asm/reg.h>
 #include <mm/mmu_decl.h>
 #include <asm/udbg.h>
 
@@ -192,11 +194,21 @@ static void __noreturn mvme5100_restart(char *cmd)
 }
 
 /*
- * Called very early, device-tree isn't unflattened
+ * The MPC7410 has a backside L2 cache (external SRAM, up to 2 MB) controlled
+ * via the L2CR SPR. Boot firmware is expected to have programmed L2CR with
+ * the correct SRAM type/ratio, but may leave L2E cleared. Force-enable L2
+ * here so the kernel does not run with L1 only if the bootloader omitted it.
+ *
+ * Called very early, device-tree isn't unflattened.
  */
 static int __init mvme5100_probe(void)
 {
-	return of_machine_is_compatible("MVME5100");
+	if (!of_machine_is_compatible("MVME5100"))
+		return 0;
+
+	_set_L2CR(_get_L2CR() | L2CR_L2E);
+
+	return 1;
 }
 
 #if CONFIG_RTC_DRV_M48T59
