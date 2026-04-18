@@ -13,6 +13,9 @@
  * Author Alessio Igor Bogani <alessio.bogani@elettra.eu>
  */
 
+#include <linux/io.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/pci.h>
 #if 0
 #include <linux/interrupt.h>
@@ -24,6 +27,10 @@
 
 #include "mpc85xx.h"
 #include "smp.h"
+
+/* MPC85xx backside L2 cache controller bits (CCSR + 0x20000). */
+#define MPC85xx_L2CTL_L2E	0x80000000	/* L2 enable */
+#define MPC85xx_L2CTL_L2I	0x40000000	/* L2 flash invalidate */
 
 #if 0
 #define MVME2500_INTERRUPT_REG_GPIO02_OFFSET	0x95
@@ -43,12 +50,66 @@ void __init mvme2500_pic_init(void)
 }
 
 /*
+ * Enable the P2020 backside L2 cache if the bootloader left it disabled.
+ *
+ * The in-tree FSL_85XX_CACHE_SRAM driver that used to handle this was
+ * removed in 6.0 (commit dc21ed2aef41). U-Boot on MVME2500 normally
+ * enables L2, but do not rely on it: if L2E is clear we enable with a
+ * flash invalidate. The L2CTL size and other settings are left as
+ * programmed by firmware.
+ */
+static void __init mvme2500_enable_l2(void)
+{
+	struct device_node *np;
+	struct resource res;
+	void __iomem *l2_base;
+	u32 ctl;
+
+	np = of_find_compatible_node(NULL, NULL,
+				     "fsl,p2020-l2-cache-controller");
+	if (!np) {
+		pr_warn("mvme2500: no L2 cache controller node in DT\n");
+		return;
+	}
+
+	if (of_address_to_resource(np, 0, &res)) {
+		pr_warn("mvme2500: cannot translate L2 controller reg\n");
+		of_node_put(np);
+		return;
+	}
+	of_node_put(np);
+
+	l2_base = ioremap(res.start, resource_size(&res));
+	if (!l2_base) {
+		pr_warn("mvme2500: cannot ioremap L2 controller\n");
+		return;
+	}
+
+	asm volatile("msync; isync");
+	ctl = in_be32(l2_base);
+
+	if (ctl & MPC85xx_L2CTL_L2E) {
+		pr_info("mvme2500: L2 cache already enabled (L2CTL=%#x)\n",
+			ctl);
+	} else {
+		pr_info("mvme2500: enabling backside L2 cache\n");
+		ctl |= MPC85xx_L2CTL_L2E | MPC85xx_L2CTL_L2I;
+		asm volatile("msync; isync");
+		out_be32(l2_base, ctl);
+		asm volatile("msync; isync");
+	}
+
+	iounmap(l2_base);
+}
+
+/*
  * Setup the architecture
  */
 static void __init mvme2500_setup_arch(void)
 {
 	if (ppc_md.progress)
 		ppc_md.progress("mvme2500_setup_arch()", 0);
+	mvme2500_enable_l2();
 	mpc85xx_smp_init();
 	fsl_pci_assign_primary();
 	pr_info("MVME2500 board from Artesyn\n");
