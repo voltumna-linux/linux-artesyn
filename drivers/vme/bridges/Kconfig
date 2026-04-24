@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-only
+comment "VME Bridge Drivers"
+
+config VME_CA91CX42
+	tristate "Universe II"
+	depends on HAS_DMA
+	help
+	 If you say Y here you get support for the Tundra CA91C142
+	 (Universe II) VME bridge chip.
+
+config VME_TSI148
+	tristate "Tundra TSI148 VME bridge support"
+	depends on HAS_DMA
+	help
+	 If you say Y here you get support for the Tundra TSI148 VME-to-PCI/X
+	 bridge chip (and pin-compatible clones).
+
+	 TSI148 is a high-performant, 2eSST and VME64-compliant VME-to-PCI/X
+	 interconnect bridge with support for PCI and PCI-X bus interface.
+	 It is primarily used in industrial and embedded systems.
+
+	 To compile this driver as a module, say M - the module will be
+	 called vme_tsi148. If unsure, say N.
+
+config VME_FAKE
+	tristate "Fake"
+	help
+	 If you say Y here you get support for the fake VME bridge. This
+	 provides a virtualised VME Bus for devices with no VME bridge. This
+	 is mainly useful for VME development (in the absence of VME
+	 hardware).

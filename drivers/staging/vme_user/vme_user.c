@@ -34,7 +34,7 @@
 #include <linux/io.h>
 #include <linux/uaccess.h>
 
-#include "vme.h"
+#include <linux/vme.h>
 #include "vme_user.h"
 
 #define DRIVER_NAME "vme_user"
