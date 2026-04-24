@@ -33,6 +33,15 @@
 #define MVME7100_MAX6649_MASK		0x20
 #define MVME7100_ABORT_MASK		0x10
 
+#ifdef CONFIG_SMP
+static void __init smp_mvme7100_setup_cpu(int cpu_nr)
+{
+	mpic_setup_this_cpu();
+	_set_L2CR(_get_L2CR() | L2CR_L2E);
+}
+
+#endif
+
 /*
  * Setup the architecture
  */
@@ -47,6 +56,9 @@ static void __init mvme7100_setup_arch(void)
 
 #ifdef CONFIG_SMP
 	mpc86xx_smp_init();
+	smp_ops->setup_cpu = smp_mvme7100_setup_cpu;
+#else
+	_set_L2CR(_get_L2CR() | L2CR_L2E);
 #endif
 
 	fsl_pci_assign_primary();
