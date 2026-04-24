@@ -24714,6 +24714,8 @@ S:	Orphan
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/gregkh/char-misc.git
 F:	Documentation/driver-api/vme.rst
 F:	drivers/staging/vme_user/
+F:	drivers/vme/
+F:	include/linux/vme.h
 
 VMWARE BALLOON DRIVER
 M:	Jerrin Shaji George <jerrin.shaji-george@broadcom.com>

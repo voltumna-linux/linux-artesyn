@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# VME configuration.
+#
+
+menuconfig VME_BUS
+	bool "VME bridge support"
+	depends on PCI
+	help
+	  Enable support for VME (VersaModular Eurocard bus) bridge modules.
+	  The bridge allows connecting VME devices to systems with existing
+	  interfaces (like USB or PCI) by means of translating VME protocol
+	  operations.
+
+	  Note that this only enables the bridge framework. You'll also
+	  likely want to enable driver for specific bridge device you have
+	  to actually use it. If unsure, say N.
+
+if VME_BUS
+
+source "drivers/vme/bridges/Kconfig"
+
+source "drivers/vme/boards/Kconfig"
+
+endif # VME
