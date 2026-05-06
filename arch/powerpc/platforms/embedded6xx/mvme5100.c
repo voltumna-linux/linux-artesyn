@@ -15,6 +15,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
+#include <linux/platform_device.h>
 #include <linux/rtc/m48t59.h>
 #include <linux/seq_file.h>
 
@@ -197,7 +198,7 @@ static void __noreturn mvme5100_restart(char *cmd)
 		;
 }
 
-#if CONFIG_RTC_DRV_M48T59
+#if IS_ENABLED(CONFIG_RTC_DRV_M48T59)
 
 static unsigned char nvrtc_read_byte(struct device *dev, u32 ofs)
 {
