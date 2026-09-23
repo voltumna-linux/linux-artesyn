@@ -233,10 +233,10 @@ static int ca91cx42_irq_init(struct vme_bridge *ca91cx42_bridge)
 	return 0;
 }
 
-static void ca91cx42_irq_exit(struct ca91cx42_driver *bridge,
+static void ca91cx42_irq_exit(struct vme_bridge *ca91cx42_bridge,
 	struct pci_dev *pdev)
 {
-	struct vme_bridge *ca91cx42_bridge;
+	struct ca91cx42_driver *bridge = ca91cx42_bridge->driver_priv;
 
 	/* Disable interrupts from PCI to VME */
 	iowrite32(0, bridge->base + VINT_EN);
@@ -246,8 +246,6 @@ static void ca91cx42_irq_exit(struct ca91cx42_driver *bridge,
 	/* Clear Any Pending PCI Interrupts */
 	iowrite32(0x00FFFFFF, bridge->base + LINT_STAT);
 
-	ca91cx42_bridge = container_of((void *)bridge, struct vme_bridge,
-				       driver_priv);
 	free_irq(pdev->irq, ca91cx42_bridge);
 }
 
@@ -1838,7 +1836,7 @@ err_master:
 		kfree(master_image);
 	}
 
-	ca91cx42_irq_exit(ca91cx42_device, pdev);
+	ca91cx42_irq_exit(ca91cx42_bridge, pdev);
 err_irq:
 err_test:
 	iounmap(ca91cx42_device->base);
@@ -1867,7 +1865,6 @@ static void ca91cx42_remove(struct pci_dev *pdev)
 
 	bridge = ca91cx42_bridge->driver_priv;
 
-
 	/* Turn off Ints */
 	iowrite32(0, bridge->base + LINT_EN);
 
@@ -1890,6 +1887,7 @@ static void ca91cx42_remove(struct pci_dev *pdev)
 	iowrite32(0x00F00000, bridge->base + VSI7_CTL);
 
 	vme_unregister_bridge(ca91cx42_bridge);
+	ca91cx42_irq_exit(ca91cx42_bridge, pdev);
 
 	ca91cx42_crcsr_exit(ca91cx42_bridge, pdev);
 
@@ -1922,14 +1920,13 @@ static void ca91cx42_remove(struct pci_dev *pdev)
 		kfree(master_image);
 	}
 
-	ca91cx42_irq_exit(bridge, pdev);
-
 	iounmap(bridge->base);
 
 	pci_release_regions(pdev);
 
 	pci_disable_device(pdev);
 
+	kfree(bridge);
 	kfree(ca91cx42_bridge);
 }
 
