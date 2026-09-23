@@ -1301,10 +1301,15 @@ void vme_irq_handler(struct vme_bridge *bridge, int level, int statid)
 	void (*call)(int, int, void *);
 	void *priv_data;
 
-	call = bridge->irq[level - 1].callback[statid].func;
-	priv_data = bridge->irq[level - 1].callback[statid].priv_data;
-	if (call)
+	if (level < 1 || level > 7 || statid < 0 ||
+	    statid >= ARRAY_SIZE(bridge->irq[0].callback))
+		return;
+
+	call = smp_load_acquire(&bridge->irq[level - 1].callback[statid].func);
+	if (call) {
+		priv_data = bridge->irq[level - 1].callback[statid].priv_data;
 		call(level, statid, priv_data);
+	}
 	else
 		printk(KERN_WARNING "Spurious VME interrupt, level:%x, vector:%x\n",
 		       level, statid);
@@ -1344,6 +1349,10 @@ int vme_irq_request(struct vme_dev *vdev, int level, int statid,
 		return -EINVAL;
 	}
 
+	if (statid < 0 || statid >= ARRAY_SIZE(bridge->irq[0].callback) ||
+	    !callback)
+		return -EINVAL;
+
 	if (!bridge->irq_set) {
 		printk(KERN_ERR "Configuring interrupts not supported\n");
 		return -EINVAL;
@@ -1359,7 +1368,8 @@ int vme_irq_request(struct vme_dev *vdev, int level, int statid,
 
 	bridge->irq[level - 1].count++;
 	bridge->irq[level - 1].callback[statid].priv_data = priv_data;
-	bridge->irq[level - 1].callback[statid].func = callback;
+	/* Publish callback data before the function on an already-active level. */
+	smp_store_release(&bridge->irq[level - 1].callback[statid].func, callback);
 
 	/* Enable IRQ level */
 	bridge->irq_set(bridge, level, 1, 1);
@@ -1393,6 +1403,9 @@ void vme_irq_free(struct vme_dev *vdev, int level, int statid)
 		return;
 	}
 
+	if (statid < 0 || statid >= ARRAY_SIZE(bridge->irq[0].callback))
+		return;
+
 	if (!bridge->irq_set) {
 		printk(KERN_ERR "Configuring interrupts not supported\n");
 		return;
@@ -1400,14 +1413,19 @@ void vme_irq_free(struct vme_dev *vdev, int level, int statid)
 
 	mutex_lock(&bridge->irq_mtx);
 
-	bridge->irq[level - 1].count--;
+	if (!bridge->irq[level - 1].callback[statid].func) {
+		mutex_unlock(&bridge->irq_mtx);
+		return;
+	}
 
-	/* Disable IRQ level if no more interrupts attached at this level*/
-	if (bridge->irq[level - 1].count == 0)
-		bridge->irq_set(bridge, level, 0, 1);
-
+	/* Drain callbacks before changing either pointer, including shared levels. */
+	bridge->irq_set(bridge, level, 0, 1);
 	bridge->irq[level - 1].callback[statid].func = NULL;
 	bridge->irq[level - 1].callback[statid].priv_data = NULL;
+	bridge->irq[level - 1].count--;
+
+	if (bridge->irq[level - 1].count)
+		bridge->irq_set(bridge, level, 1, 0);
 
 	mutex_unlock(&bridge->irq_mtx);
 }
