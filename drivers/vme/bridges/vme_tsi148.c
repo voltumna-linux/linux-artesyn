@@ -2575,6 +2575,8 @@ static void tsi148_remove(struct pci_dev *pdev)
 
 	bridge = tsi148_bridge->driver_priv;
 
+	/* Client remove callbacks still need live windows and PCI interrupts. */
+	vme_unregister_bridge(tsi148_bridge);
 
 	dev_dbg(&pdev->dev, "Driver is being unloaded.\n");
 
@@ -2618,8 +2620,6 @@ static void tsi148_remove(struct pci_dev *pdev)
 	iowrite32be(0x0, bridge->base + TSI148_LCSR_INTM2);
 
 	tsi148_irq_exit(tsi148_bridge, pdev);
-
-	vme_unregister_bridge(tsi148_bridge);
 
 	tsi148_crcsr_exit(tsi148_bridge, pdev);
 
