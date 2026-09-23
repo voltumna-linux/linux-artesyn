@@ -1850,8 +1850,9 @@ static void ca91cx42_remove(struct pci_dev *pdev)
 
 	bridge = ca91cx42_bridge->driver_priv;
 
-	/* Turn off Ints */
-	iowrite32(0, bridge->base + LINT_EN);
+	/* Client remove callbacks still need live windows and PCI interrupts. */
+	vme_unregister_bridge(ca91cx42_bridge);
+	ca91cx42_irq_exit(ca91cx42_bridge, pdev);
 
 	/* Turn off the windows */
 	iowrite32(0x00800000, bridge->base + LSI0_CTL);
@@ -1870,9 +1871,6 @@ static void ca91cx42_remove(struct pci_dev *pdev)
 	iowrite32(0x00F00000, bridge->base + VSI5_CTL);
 	iowrite32(0x00F00000, bridge->base + VSI6_CTL);
 	iowrite32(0x00F00000, bridge->base + VSI7_CTL);
-
-	vme_unregister_bridge(ca91cx42_bridge);
-	ca91cx42_irq_exit(ca91cx42_bridge, pdev);
 
 	ca91cx42_crcsr_exit(ca91cx42_bridge, pdev);
 
