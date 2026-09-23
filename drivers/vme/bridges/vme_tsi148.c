@@ -33,9 +33,10 @@
 
 static int tsi148_probe(struct pci_dev *, const struct pci_device_id *);
 static void tsi148_remove(struct pci_dev *);
+static void tsi148_crcsr_exit(struct vme_bridge *, struct pci_dev *);
 
 /* Module parameter */
-static bool err_chk;
+static bool err_chk = true;
 static u32 geoid;
 
 static const char driver_name[] = "vme_tsi148";
@@ -156,41 +157,52 @@ static u32 tsi148_PERR_irqhandler(struct vme_bridge *tsi148_bridge)
 	return TSI148_LCSR_INTC_PERRC;
 }
 
-/*
- * Save address and status when VME error interrupt occurs.
- */
-static u32 tsi148_VERR_irqhandler(struct vme_bridge *tsi148_bridge)
+/* Caller holds error_lock; the exception latch is shared by all windows. */
+static bool tsi148_clear_bus_error(struct vme_bridge *tsi148_bridge)
 {
-	unsigned int error_addr_high, error_addr_low;
+	struct tsi148_driver *bridge = tsi148_bridge->driver_priv;
 	unsigned long long error_addr;
-	u32 error_attrib;
-	int error_am;
-	struct tsi148_driver *bridge;
+	u32 error_attrib, high, low;
 
-	bridge = tsi148_bridge->driver_priv;
-
-	error_addr_high = ioread32be(bridge->base + TSI148_LCSR_VEAU);
-	error_addr_low = ioread32be(bridge->base + TSI148_LCSR_VEAL);
 	error_attrib = ioread32be(bridge->base + TSI148_LCSR_VEAT);
-	error_am = (error_attrib & TSI148_LCSR_VEAT_AM_M) >> 8;
+	if (!(error_attrib & TSI148_LCSR_VEAT_VES))
+		return false;
 
-	reg_join(error_addr_high, error_addr_low, &error_addr);
+	high = ioread32be(bridge->base + TSI148_LCSR_VEAU);
+	low = ioread32be(bridge->base + TSI148_LCSR_VEAL);
+	reg_join(high, low, &error_addr);
 
-	/* Check for exception register overflow (we have lost error data) */
+	/* Acknowledge while this exception still owns the latch. Do not defer
+	 * VERRC to the outer IRQ handler: that could clear a newer exception.
+	 */
+	iowrite32be(TSI148_LCSR_INTC_VERRC, bridge->base + TSI148_LCSR_INTC);
+	iowrite32be(TSI148_LCSR_VEAT_VESCL, bridge->base + TSI148_LCSR_VEAT);
+	ioread32be(bridge->base + TSI148_LCSR_VEAT);
+
 	if (error_attrib & TSI148_LCSR_VEAT_VEOF)
 		dev_err(tsi148_bridge->parent, "VME Bus Exception Overflow Occurred\n");
 
 	if (err_chk)
-		vme_bus_error_handler(tsi148_bridge, error_addr, error_am);
+		vme_bus_error_handler(tsi148_bridge, error_addr,
+			(error_attrib & TSI148_LCSR_VEAT_AM_M) >> 8);
 	else
 		dev_err(tsi148_bridge->parent,
 			"VME Bus Error at address: 0x%llx, attributes: %08x\n",
 			error_addr, error_attrib);
 
-	/* Clear Status */
-	iowrite32be(TSI148_LCSR_VEAT_VESCL, bridge->base + TSI148_LCSR_VEAT);
+	return true;
+}
 
-	return TSI148_LCSR_INTC_VERRC;
+static u32 tsi148_VERR_irqhandler(struct vme_bridge *tsi148_bridge)
+{
+	struct tsi148_driver *bridge = tsi148_bridge->driver_priv;
+	unsigned long flags;
+
+	spin_lock_irqsave(&bridge->error_lock, flags);
+	tsi148_clear_bus_error(tsi148_bridge);
+	spin_unlock_irqrestore(&bridge->error_lock, flags);
+
+	return 0;
 }
 
 /*
@@ -1158,28 +1170,26 @@ static int tsi148_master_get(struct vme_master_resource *image, int *enabled,
 static ssize_t tsi148_master_read(struct vme_master_resource *image, void *buf,
 				  size_t count, loff_t offset)
 {
-	int retval, enabled;
-	unsigned long long vme_base, size;
-	u32 aspace, cycle, dwidth;
-	struct vme_error_handler *handler = NULL;
+	ssize_t retval;
+	unsigned long flags;
 	struct vme_bridge *tsi148_bridge;
+	struct tsi148_driver *bridge;
 	void __iomem *addr = image->kern_base + offset;
 	unsigned int done = 0;
 	unsigned int count32;
 
 	tsi148_bridge = image->parent;
+	bridge = tsi148_bridge->driver_priv;
 
-	spin_lock(&image->lock);
+	if (!count)
+		return 0;
+
+	spin_lock_irqsave(&image->lock, flags);
 
 	if (err_chk) {
-		__tsi148_master_get(image, &enabled, &vme_base, &size, &aspace,
-				    &cycle, &dwidth);
-		handler = vme_register_error_handler(tsi148_bridge, aspace,
-						     vme_base + offset, count);
-		if (!handler) {
-			spin_unlock(&image->lock);
-			return -ENOMEM;
-		}
+		spin_lock(&bridge->error_lock);
+		/* Retire an older exception before starting this transfer. */
+		tsi148_clear_bus_error(tsi148_bridge);
 	}
 
 	/* The following code handles VME address alignment. We cannot use
@@ -1226,16 +1236,15 @@ out:
 	retval = count;
 
 	if (err_chk) {
-		if (handler->num_errors) {
-			dev_err(image->parent->parent,
-				"First VME read error detected an at address 0x%llx\n",
-				handler->first_error);
-			retval = handler->first_error - (vme_base + offset);
-		}
-		vme_unregister_error_handler(handler);
+		/* VEOF or an unrelated exception can hide this transfer's fault.
+		 * Do not claim a byte count when completion is uncertain.
+		 */
+		if (tsi148_clear_bus_error(tsi148_bridge))
+			retval = -EIO;
+		spin_unlock(&bridge->error_lock);
 	}
 
-	spin_unlock(&image->lock);
+	spin_unlock_irqrestore(&image->lock, flags);
 
 	return retval;
 }
@@ -1243,14 +1252,12 @@ out:
 static ssize_t tsi148_master_write(struct vme_master_resource *image, void *buf,
 				   size_t count, loff_t offset)
 {
-	int retval = 0, enabled;
-	unsigned long long vme_base, size;
-	u32 aspace, cycle, dwidth;
+	ssize_t retval;
+	unsigned long flags;
 	void __iomem *addr = image->kern_base + offset;
 	unsigned int done = 0;
 	unsigned int count32;
 
-	struct vme_error_handler *handler = NULL;
 	struct vme_bridge *tsi148_bridge;
 	struct tsi148_driver *bridge;
 
@@ -1258,17 +1265,20 @@ static ssize_t tsi148_master_write(struct vme_master_resource *image, void *buf,
 
 	bridge = tsi148_bridge->driver_priv;
 
-	spin_lock(&image->lock);
+	if (!count)
+		return 0;
+
+	spin_lock_irqsave(&image->lock, flags);
 
 	if (err_chk) {
-		__tsi148_master_get(image, &enabled, &vme_base, &size, &aspace,
-				    &cycle, &dwidth);
-		handler = vme_register_error_handler(tsi148_bridge, aspace,
-						     vme_base + offset, count);
-		if (!handler) {
-			spin_unlock(&image->lock);
-			return -ENOMEM;
+		spin_lock(&bridge->error_lock);
+		if (!bridge->flush_image || !bridge->flush_image->kern_base) {
+			spin_unlock(&bridge->error_lock);
+			spin_unlock_irqrestore(&image->lock, flags);
+			return -ENODEV;
 		}
+		/* Retire an older exception before starting this transfer. */
+		tsi148_clear_bus_error(tsi148_bridge);
 	}
 
 	/* Here we apply for the same strategy we do in master_read
@@ -1312,27 +1322,24 @@ out:
 	/*
 	 * Writes are posted. We need to do a read on the VME bus to flush out
 	 * all of the writes before we check for errors. We can't guarantee
-	 * that reading the data we have just written is safe. It is believed
-	 * that there isn't any read, write re-ordering, so we can read any
-	 * location in VME space, so lets read the Device ID from the tsi148's
-	 * own registers as mapped into CR/CSR space.
+	 * that reading the data we have just written is safe. The PCI/X target
+	 * preserves transfer ordering (manual 3.2.1.3/3.3.1.3), so read a safe
+	 * location: the Device ID in the tsi148's own CR/CSR registers.
 	 *
-	 * We check for saved errors in the written address range/space.
+	 * Check the exception latch directly; the IRQ may not have run yet.
 	 */
 
 	if (err_chk) {
 		ioread16(bridge->flush_image->kern_base + 0x7F000);
-
-		if (handler->num_errors) {
-			dev_warn(tsi148_bridge->parent,
-				 "First VME write error detected an at address 0x%llx\n",
-				 handler->first_error);
-			retval = handler->first_error - (vme_base + offset);
-		}
-		vme_unregister_error_handler(handler);
+		/* VEOF or an unrelated exception can hide this transfer's fault.
+		 * Do not claim a byte count when completion is uncertain.
+		 */
+		if (tsi148_clear_bus_error(tsi148_bridge))
+			retval = -EIO;
+		spin_unlock(&bridge->error_lock);
 	}
 
-	spin_unlock(&image->lock);
+	spin_unlock_irqrestore(&image->lock, flags);
 
 	return retval;
 }
@@ -2148,6 +2155,22 @@ static void tsi148_free_consistent(struct device *parent, size_t size,
 	dma_free_coherent(&pdev->dev, size, vaddr, dma);
 }
 
+/* No client can still be using the reserved flush window. */
+static void tsi148_flush_exit(struct tsi148_driver *bridge)
+{
+	struct vme_master_resource *image = bridge->flush_image;
+
+	if (!image)
+		return;
+	if (image->kern_base) {
+		iowrite32be(0, bridge->base + TSI148_LCSR_OT[image->number] +
+			   TSI148_LCSR_OFFSET_OTAT);
+		tsi148_free_resource(image);
+	}
+	kfree(image);
+	bridge->flush_image = NULL;
+}
+
 /*
  * Configure CR/CSR space
  *
@@ -2212,8 +2235,11 @@ static int tsi148_crcsr_init(struct vme_bridge *tsi148_bridge,
 	if (err_chk) {
 		retval = tsi148_master_set(bridge->flush_image, 1, (vstat * 0x80000),
 					   0x80000, VME_CRCSR, VME_SCT, VME_D16);
-		if (retval)
+		if (retval) {
 			dev_err(tsi148_bridge->parent, "Configuring flush image failed\n");
+			tsi148_crcsr_exit(tsi148_bridge, pdev);
+			return retval;
+		}
 	}
 
 	return 0;
@@ -2226,6 +2252,7 @@ static void tsi148_crcsr_exit(struct vme_bridge *tsi148_bridge,
 	struct tsi148_driver *bridge;
 
 	bridge = tsi148_bridge->driver_priv;
+	tsi148_flush_exit(bridge);
 
 	/* Turn off CR/CSR space */
 	crat = ioread32be(bridge->base + TSI148_LCSR_CRAT);
@@ -2313,6 +2340,7 @@ static int tsi148_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	init_waitqueue_head(&tsi148_device->iack_queue);
 	mutex_init(&tsi148_device->vme_int);
 	mutex_init(&tsi148_device->vme_rmw);
+	spin_lock_init(&tsi148_device->error_lock);
 
 	tsi148_bridge->parent = &pdev->dev;
 	strscpy(tsi148_bridge->name, driver_name, VMENAMSIZ);
@@ -2510,6 +2538,7 @@ err_slave:
 		kfree(slave_image);
 	}
 err_master:
+	tsi148_flush_exit(tsi148_device);
 	/* resources are stored in link list */
 	list_for_each_safe(pos, n, &tsi148_bridge->master_resources) {
 		master_image = list_entry(pos, struct vme_master_resource, list);
@@ -2628,7 +2657,8 @@ static void tsi148_remove(struct pci_dev *pdev)
 
 module_pci_driver(tsi148_driver);
 
-MODULE_PARM_DESC(err_chk, "Check for VME errors on reads and writes");
+MODULE_PARM_DESC(err_chk,
+	"Check VME PIO errors (default: enabled; reserves one master window)");
 module_param(err_chk, bool, 0);
 
 MODULE_PARM_DESC(geoid, "Override geographical addressing");
