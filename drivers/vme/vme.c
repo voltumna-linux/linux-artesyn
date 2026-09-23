@@ -1246,11 +1246,11 @@ void vme_bus_error_handler(struct vme_bridge *bridge,
 	struct list_head *handler_pos = NULL;
 	struct vme_error_handler *handler;
 	int handler_triggered = 0;
+	unsigned long flags;
 	u32 aspace = vme_get_aspace(am);
 
-	list_for_each(handler_pos, &bridge->vme_error_handlers) {
-		handler = list_entry(handler_pos, struct vme_error_handler,
-				     list);
+	spin_lock_irqsave(&bridge->vme_error_lock, flags);
+	list_for_each_entry(handler, &bridge->vme_error_handlers, list) {
 		if ((aspace == handler->aspace) &&
 		    (address >= handler->start) &&
 		    (address < handler->end)) {
@@ -1261,6 +1261,8 @@ void vme_bus_error_handler(struct vme_bridge *bridge,
 			handler_triggered = 1;
 		}
 	}
+
+	spin_unlock_irqrestore(&bridge->vme_error_lock, flags);
 
 	if (!handler_triggered)
 		dev_err(bridge->parent,
@@ -1273,17 +1275,21 @@ struct vme_error_handler *vme_register_error_handler(struct vme_bridge *bridge, 
 						     unsigned long long address, size_t len)
 {
 	struct vme_error_handler *handler;
+	unsigned long flags;
 
 	handler = kmalloc(sizeof(*handler), GFP_ATOMIC);
 	if (!handler)
 		return NULL;
 
+	handler->bridge = bridge;
 	handler->aspace = aspace;
 	handler->start = address;
 	handler->end = address + len;
 	handler->num_errors = 0;
 	handler->first_error = 0;
+	spin_lock_irqsave(&bridge->vme_error_lock, flags);
 	list_add_tail(&handler->list, &bridge->vme_error_handlers);
+	spin_unlock_irqrestore(&bridge->vme_error_lock, flags);
 
 	return handler;
 }
@@ -1291,7 +1297,12 @@ EXPORT_SYMBOL(vme_register_error_handler);
 
 void vme_unregister_error_handler(struct vme_error_handler *handler)
 {
+	struct vme_bridge *bridge = handler->bridge;
+	unsigned long flags;
+
+	spin_lock_irqsave(&bridge->vme_error_lock, flags);
 	list_del(&handler->list);
+	spin_unlock_irqrestore(&bridge->vme_error_lock, flags);
 	kfree(handler);
 }
 EXPORT_SYMBOL(vme_unregister_error_handler);
@@ -1804,6 +1815,7 @@ static void vme_dev_release(struct device *dev)
 struct vme_bridge *vme_init_bridge(struct vme_bridge *bridge)
 {
 	INIT_LIST_HEAD(&bridge->vme_error_handlers);
+	spin_lock_init(&bridge->vme_error_lock);
 	INIT_LIST_HEAD(&bridge->master_resources);
 	INIT_LIST_HEAD(&bridge->slave_resources);
 	INIT_LIST_HEAD(&bridge->dma_resources);

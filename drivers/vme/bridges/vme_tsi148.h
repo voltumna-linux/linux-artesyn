@@ -39,6 +39,8 @@ struct tsi148_driver {
 	void *crcsr_kernel;
 	dma_addr_t crcsr_bus;
 	struct vme_master_resource *flush_image;
+	/* Serializes checked PIO across windows and exception latch access. */
+	spinlock_t error_lock;
 	struct mutex vme_rmw;		/* Only one RMW cycle at a time */
 	struct mutex vme_int;		/*
 					 * Only one VME interrupt can be
