@@ -85,9 +85,9 @@ struct qrtr_node {
 /* Max nodes limit is chosen based on the current platform requirements.
  * If the requirement changes in the future, this value can be increased.
  */
-#define QRTR_NS_MAX_NODES   64
+#define QRTR_NS_MAX_NODES   512
 
-static u8 node_count;
+static u16 node_count;
 
 static struct qrtr_node *node_get(unsigned int node_id)
 {
@@ -771,7 +771,7 @@ int qrtr_ns_init(void)
 	sq.sq_port = QRTR_PORT_CTRL;
 	qrtr_ns.local_node = sq.sq_node;
 
-	ret = kernel_bind(qrtr_ns.sock, (struct sockaddr *)&sq, sizeof(sq));
+	ret = kernel_bind(qrtr_ns.sock, (struct sockaddr_unsized *)&sq, sizeof(sq));
 	if (ret < 0) {
 		pr_err("failed to bind to socket\n");
 		goto err_wq;

@@ -132,6 +132,8 @@ static inline bool biovec_phys_mergeable(struct request_queue *q,
 
 	if (addr1 + vec1->bv_len != addr2)
 		return false;
+	if (!zone_device_pages_have_same_pgmap(vec1->bv_page, vec2->bv_page))
+		return false;
 	if (xen_domain() && !xen_biovec_phys_mergeable(vec1, vec2->bv_page))
 		return false;
 	if ((addr1 | mask) != ((addr2 + vec2->bv_len - 1) | mask))
@@ -697,6 +699,7 @@ static inline int req_ref_read(struct request *req)
 static inline u64 blk_time_get_ns(void)
 {
 	struct blk_plug *plug = current->plug;
+	u64 now;
 
 	if (!plug || !in_task())
 		return ktime_get_ns();
@@ -705,12 +708,18 @@ static inline u64 blk_time_get_ns(void)
 	 * 0 could very well be a valid time, but rather than flag "this is
 	 * a valid timestamp" separately, just accept that we'll do an extra
 	 * ktime_get_ns() if we just happen to get 0 as the current time.
+	 *
+	 * cur_ktime can be zeroed by pre-emption the moment PF_BLOCK_TS is set.
 	 */
-	if (!plug->cur_ktime) {
-		plug->cur_ktime = ktime_get_ns();
+	now = READ_ONCE(plug->cur_ktime);
+	if (!now) {
+		now = ktime_get_ns();
+		WRITE_ONCE(plug->cur_ktime, now);
+		/* Ensure PF_BLOCK_TS is set after cur_ktime. */
+		barrier();
 		current->flags |= PF_BLOCK_TS;
 	}
-	return plug->cur_ktime;
+	return now;
 }
 
 static inline ktime_t blk_time_get(void)
