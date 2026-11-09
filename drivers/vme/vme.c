@@ -1209,8 +1209,10 @@ void vme_bus_error_handler(struct vme_bridge *bridge,
 {
 	struct vme_error_handler *handler;
 	int handler_triggered = 0;
+	unsigned long flags;
 	u32 aspace = vme_get_aspace(am);
 
+	spin_lock_irqsave(&bridge->vme_error_lock, flags);
 	list_for_each_entry(handler, &bridge->vme_error_handlers, list) {
 		if ((aspace == handler->aspace) &&
 		    (address >= handler->start) &&
@@ -1223,6 +1225,8 @@ void vme_bus_error_handler(struct vme_bridge *bridge,
 		}
 	}
 
+	spin_unlock_irqrestore(&bridge->vme_error_lock, flags);
+
 	if (!handler_triggered)
 		dev_err(bridge->parent,
 			"Unhandled VME access error at address 0x%llx\n",
@@ -1234,17 +1238,21 @@ struct vme_error_handler *vme_register_error_handler(struct vme_bridge *bridge, 
 						     unsigned long long address, size_t len)
 {
 	struct vme_error_handler *handler;
+	unsigned long flags;
 
 	handler = kmalloc(sizeof(*handler), GFP_ATOMIC);
 	if (!handler)
 		return NULL;
 
+	handler->bridge = bridge;
 	handler->aspace = aspace;
 	handler->start = address;
 	handler->end = address + len;
 	handler->num_errors = 0;
 	handler->first_error = 0;
+	spin_lock_irqsave(&bridge->vme_error_lock, flags);
 	list_add_tail(&handler->list, &bridge->vme_error_handlers);
+	spin_unlock_irqrestore(&bridge->vme_error_lock, flags);
 
 	return handler;
 }
@@ -1252,7 +1260,12 @@ EXPORT_SYMBOL(vme_register_error_handler);
 
 void vme_unregister_error_handler(struct vme_error_handler *handler)
 {
+	struct vme_bridge *bridge = handler->bridge;
+	unsigned long flags;
+
+	spin_lock_irqsave(&bridge->vme_error_lock, flags);
 	list_del(&handler->list);
+	spin_unlock_irqrestore(&bridge->vme_error_lock, flags);
 	kfree(handler);
 }
 EXPORT_SYMBOL(vme_unregister_error_handler);
@@ -1262,10 +1275,16 @@ void vme_irq_handler(struct vme_bridge *bridge, int level, int statid)
 	void (*call)(int level, int statid, void *priv_data);
 	void *priv_data;
 
-	call = bridge->irq[level - 1].callback[statid].func;
-	priv_data = bridge->irq[level - 1].callback[statid].priv_data;
-	if (call)
+	if (level < 1 || level > 7 || statid < 0 ||
+	    statid >= ARRAY_SIZE(bridge->irq[0].callback))
+		return;
+
+	/* Pair with the release store in vme_irq_request(). */
+	call = smp_load_acquire(&bridge->irq[level - 1].callback[statid].func);
+	if (call) {
+		priv_data = bridge->irq[level - 1].callback[statid].priv_data;
 		call(level, statid, priv_data);
+	}
 	else
 		dev_warn(bridge->parent,
 			 "Spurious VME interrupt, level:%x, vector:%x\n", level,
@@ -1306,6 +1325,10 @@ int vme_irq_request(struct vme_dev *vdev, int level, int statid,
 		return -EINVAL;
 	}
 
+	if (statid < 0 || statid >= ARRAY_SIZE(bridge->irq[0].callback) ||
+	    !callback)
+		return -EINVAL;
+
 	if (!bridge->irq_set) {
 		dev_err(bridge->parent,
 			"Configuring interrupts not supported\n");
@@ -1322,7 +1345,8 @@ int vme_irq_request(struct vme_dev *vdev, int level, int statid,
 
 	bridge->irq[level - 1].count++;
 	bridge->irq[level - 1].callback[statid].priv_data = priv_data;
-	bridge->irq[level - 1].callback[statid].func = callback;
+	/* Publish callback data before the function on an already-active level. */
+	smp_store_release(&bridge->irq[level - 1].callback[statid].func, callback);
 
 	/* Enable IRQ level */
 	bridge->irq_set(bridge, level, 1, 1);
@@ -1356,6 +1380,9 @@ void vme_irq_free(struct vme_dev *vdev, int level, int statid)
 		return;
 	}
 
+	if (statid < 0 || statid >= ARRAY_SIZE(bridge->irq[0].callback))
+		return;
+
 	if (!bridge->irq_set) {
 		dev_err(bridge->parent,
 			"Configuring interrupts not supported\n");
@@ -1364,14 +1391,19 @@ void vme_irq_free(struct vme_dev *vdev, int level, int statid)
 
 	mutex_lock(&bridge->irq_mtx);
 
-	bridge->irq[level - 1].count--;
+	if (!bridge->irq[level - 1].callback[statid].func) {
+		mutex_unlock(&bridge->irq_mtx);
+		return;
+	}
 
-	/* Disable IRQ level if no more interrupts attached at this level*/
-	if (bridge->irq[level - 1].count == 0)
-		bridge->irq_set(bridge, level, 0, 1);
-
+	/* Drain callbacks before changing either pointer, including shared levels. */
+	bridge->irq_set(bridge, level, 0, 1);
 	bridge->irq[level - 1].callback[statid].func = NULL;
 	bridge->irq[level - 1].callback[statid].priv_data = NULL;
+	bridge->irq[level - 1].count--;
+
+	if (bridge->irq[level - 1].count)
+		bridge->irq_set(bridge, level, 1, 0);
 
 	mutex_unlock(&bridge->irq_mtx);
 }
@@ -1751,6 +1783,7 @@ static void vme_dev_release(struct device *dev)
 struct vme_bridge *vme_init_bridge(struct vme_bridge *bridge)
 {
 	INIT_LIST_HEAD(&bridge->vme_error_handlers);
+	spin_lock_init(&bridge->vme_error_lock);
 	INIT_LIST_HEAD(&bridge->master_resources);
 	INIT_LIST_HEAD(&bridge->slave_resources);
 	INIT_LIST_HEAD(&bridge->dma_resources);

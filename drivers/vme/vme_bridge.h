@@ -79,6 +79,7 @@ struct vme_lm_resource {
 };
 
 struct vme_error_handler {
+	struct vme_bridge *bridge;
 	struct list_head list;
 	unsigned long long start;	/* Beginning of error window */
 	unsigned long long end;		/* End of error window */
@@ -114,6 +115,7 @@ struct vme_bridge {
 
 	/* List for registered errors handlers */
 	struct list_head vme_error_handlers;
+	spinlock_t vme_error_lock; /* List and handler counters */
 	/* List of devices on this bridge */
 	struct list_head devices;
 

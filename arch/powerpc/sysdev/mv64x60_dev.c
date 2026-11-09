@@ -34,8 +34,11 @@ static const struct of_device_id of_mv64x60_devices[] __initconst = {
 static struct platform_device * __init mv64x60_eth_register_shared_pdev(
 						struct device_node *np, int id)
 {
+	const struct mv643xx_eth_shared_platform_data pdata = {
+		.shared_smi = true,
+	};
 	struct platform_device *pdev;
-	struct resource r[2];
+	struct resource r[2] = {};
 	int err;
 
 	err = of_address_to_resource(np, 0, &r[0]);
@@ -53,8 +56,8 @@ static struct platform_device * __init mv64x60_eth_register_shared_pdev(
 			return pdev;
 	}
 
-	pdev = platform_device_register_simple(MV643XX_ETH_SHARED_NAME, id,
-					       &r[0], 1);
+	pdev = platform_device_register_resndata(NULL, MV643XX_ETH_SHARED_NAME, id,
+					       &r[0], 1, &pdata, sizeof(pdata));
 
 	return pdev;
 }

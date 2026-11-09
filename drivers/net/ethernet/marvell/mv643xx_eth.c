@@ -2884,9 +2884,10 @@ static inline void mv643xx_eth_shared_of_remove(void)
 static int mv643xx_eth_shared_probe(struct platform_device *pdev)
 {
 	static int mv643xx_eth_version_printed;
-	struct mv643xx_eth_shared_platform_data *pd;
+	struct mv643xx_eth_shared_platform_data *pd = dev_get_platdata(&pdev->dev);
 	struct mv643xx_eth_shared_private *msp;
 	const struct mbus_dram_target_info *dram;
+	struct resource *res;
 	int ret;
 
 	if (!mv643xx_eth_version_printed++)
@@ -2898,9 +2899,20 @@ static int mv643xx_eth_shared_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, msp);
 
-	msp->base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(msp->base))
-		return PTR_ERR(msp->base);
+	if (pd && pd->shared_smi) {
+		/* MDIO has its own resource inside this register range. */
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (!res)
+			return -EINVAL;
+		msp->base = devm_ioremap(&pdev->dev, res->start,
+					 resource_size(res));
+		if (!msp->base)
+			return -ENOMEM;
+	} else {
+		msp->base = devm_platform_ioremap_resource(pdev, 0);
+		if (IS_ERR(msp->base))
+			return PTR_ERR(msp->base);
+	}
 
 	msp->clk = devm_clk_get_optional_enabled(&pdev->dev, NULL);
 	if (IS_ERR(msp->clk))

@@ -27,6 +27,8 @@ struct mv643xx_eth_shared_platform_data {
 	 * limit of 9KiB will be used.
 	 */
 	int			tx_csum_limit;
+	/* Register range overlaps a separately registered MDIO device. */
+	bool			shared_smi;
 };
 
 #define MV643XX_ETH_PHY_ADDR_DEFAULT	0
